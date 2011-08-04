@@ -173,12 +173,27 @@ class WM(object):
                     for h in self.property_handlers[atom]:
                         h(self)
 
-
     def focus_and_raise(self, window):
-        wdesktop = self.get_window_desktop(window)
-        if wdesktop != self.current_desktop:
-            self.set_current_desktop(wdesktop)
-
+        self.activate_window_desktop(window)
         window.configure(stack_mode=X.Above)
         window.set_input_focus(X.RevertToPointerRoot, X.CurrentTime)
         self.dpy.flush()
+
+    def place_window_above(self, window):
+        window.configure(stack_mode=X.Above)
+        self.dpy.flush()
+
+    def place_window_below(self, window):
+        window.configure(stack_mode=X.Below)
+        self.dpy.flush()
+
+    def activate_window_desktop(self, window):
+        wd = self.get_window_desktop(window)
+        if wd is not None:
+            if self.current_desktop != wd:
+                self.set_current_desktop(wd)
+                return True
+            else:
+                return False
+        else:
+            return None
