@@ -1,6 +1,6 @@
 from Xlib import X, Xatom
 import Xlib.display
-from Xlib.XK import string_to_keysym
+from Xlib.XK import string_to_keysym, load_keysym_group
 from Xlib.protocol.event import ClientMessage
 
 mods = {
@@ -12,9 +12,12 @@ mods = {
   'Mod': X.Mod4Mask,
 }
 
+load_keysym_group('xf86')
+
 class WM(object):
     def __init__(self):
         self.key_handlers = {}
+        self.property_handlers = {}
         self.create_handlers = []
 
         self.dpy = Xlib.display.Display()
@@ -45,6 +48,16 @@ class WM(object):
         self.create_handlers.append(func)
         return func
 
+    def on_property_change(self, *props):
+        def inner(func):
+            for p in props:
+                atom = self.dpy.intern_atom(p)
+                self.property_handlers.setdefault(atom, []).append(func)
+
+            return func
+
+        return inner
+
     def get_clients(self):
         result = []
         wids = self.root.get_full_property(
@@ -61,8 +74,11 @@ class WM(object):
             self.dpy.intern_atom('_NET_CURRENT_DESKTOP'), 0).value[0]
 
     def get_window_desktop(self, window):
-        return window.get_full_property(
-            self.dpy.intern_atom('_NET_WM_DESKTOP'), 0).value[0]
+        d = window.get_full_property(self.dpy.intern_atom('_NET_WM_DESKTOP'), 0)
+        if d:
+            return d.value[0]
+        else:
+            return None
 
     def set_current_desktop(self, num):
         self._send_event(self.root, self.dpy.intern_atom('_NET_CURRENT_DESKTOP'), [num])
@@ -112,37 +128,51 @@ class WM(object):
 
     def handle_create(self, window):
         window.change_attributes(
-            event_mask=X.KeyPressMask | X.StructureNotifyMask )
+            event_mask=X.KeyPressMask | X.StructureNotifyMask | X.PropertyChangeMask )
 
+        self.event_window = window
         for handler in self.create_handlers:
-            self.event_window = window
             handler(self)
 
     def run(self):
+        self.startup = True
         for c in self.get_clients():
             self.handle_create(c)
 
         while True:
             event = self.dpy.next_event()
-            if event.type == X.KeyPress:
+            etype = event.type
+            if etype == X.KeyPress:
                 try:
                     handler = self.key_handlers[event.window.id][(event.state, event.detail)]
                 except KeyError:
                     pass
                 else:
+                    self.event = event
                     self.event_window = event.window
                     handler(self)
-            elif event.type == X.KeyRelease:
+
+            elif etype == X.KeyRelease:
                 pass
-            elif event.type == X.CreateNotify:
+
+            elif etype == X.CreateNotify:
+                self.event = event
+                self.startup = False
                 self.handle_create(event.window)
-            elif event.type == X.DestroyNotify:
+
+            elif etype == X.DestroyNotify:
                 wid = event.window.id
                 if wid in self.key_handlers:
                     del self.key_handlers[wid]
-            else:
-                pass
-                #print event
+
+            elif etype == X.PropertyNotify:
+                atom = event.atom
+                if atom in self.property_handlers:
+                    self.event_window = event.window
+                    self.event = event
+                    for h in self.property_handlers[atom]:
+                        h(self)
+
 
     def focus_and_raise(self, window):
         wdesktop = self.get_window_desktop(window)

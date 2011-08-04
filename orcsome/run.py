@@ -18,7 +18,7 @@ def run():
     try:
         execfile(rcfile, {'wm':wm})
     except:
-        logger.getLogger(__name__).exception('Error on loading %s' % rcfile)
+        logging.getLogger(__name__).exception('Error on loading %s' % rcfile)
         sys.exit(1)
 
     wm.run()
