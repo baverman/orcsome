@@ -76,11 +76,18 @@ class WM(object):
     def get_window_desktop(self, window):
         d = window.get_full_property(self.dpy.intern_atom('_NET_WM_DESKTOP'), 0)
         if d:
-            return d.value[0]
+            d = d.value[0]
+            if d == 0xffffffff:
+                return -1
+            else:
+                return d
         else:
             return None
 
     def set_current_desktop(self, num):
+        if num < 0:
+            return
+
         self._send_event(self.root, self.dpy.intern_atom('_NET_CURRENT_DESKTOP'), [num])
         self.dpy.flush()
 
@@ -173,6 +180,8 @@ class WM(object):
                         self.event = event
                         for h in self.property_handlers[atom]:
                             h(self)
+            except (KeyboardInterrupt, SystemExit):
+                break
             except:
                 import logging
                 logging.getLogger(__name__).exception('Boo')
