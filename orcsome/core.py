@@ -140,38 +140,42 @@ class WM(object):
             self.handle_create(c)
 
         while True:
-            event = self.dpy.next_event()
-            etype = event.type
-            if etype == X.KeyPress:
-                try:
-                    handler = self.key_handlers[event.window.id][(event.state, event.detail)]
-                except KeyError:
+            try:
+                event = self.dpy.next_event()
+                etype = event.type
+                if etype == X.KeyPress:
+                    try:
+                        handler = self.key_handlers[event.window.id][(event.state, event.detail)]
+                    except KeyError:
+                        pass
+                    else:
+                        self.event = event
+                        self.event_window = event.window
+                        handler(self)
+
+                elif etype == X.KeyRelease:
                     pass
-                else:
+
+                elif etype == X.CreateNotify:
                     self.event = event
-                    self.event_window = event.window
-                    handler(self)
+                    self.startup = False
+                    self.handle_create(event.window)
 
-            elif etype == X.KeyRelease:
-                pass
+                elif etype == X.DestroyNotify:
+                    wid = event.window.id
+                    if wid in self.key_handlers:
+                        del self.key_handlers[wid]
 
-            elif etype == X.CreateNotify:
-                self.event = event
-                self.startup = False
-                self.handle_create(event.window)
-
-            elif etype == X.DestroyNotify:
-                wid = event.window.id
-                if wid in self.key_handlers:
-                    del self.key_handlers[wid]
-
-            elif etype == X.PropertyNotify:
-                atom = event.atom
-                if atom in self.property_handlers:
-                    self.event_window = event.window
-                    self.event = event
-                    for h in self.property_handlers[atom]:
-                        h(self)
+                elif etype == X.PropertyNotify:
+                    atom = event.atom
+                    if atom in self.property_handlers:
+                        self.event_window = event.window
+                        self.event = event
+                        for h in self.property_handlers[atom]:
+                            h(self)
+            except:
+                import logging
+                logging.getLogger(__name__).exception('Boo')
 
     def focus_and_raise(self, window):
         self.activate_window_desktop(window)
