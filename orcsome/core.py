@@ -210,3 +210,9 @@ class WM(object):
                 return False
         else:
             return None
+
+    def get_atom(self, atom_name):
+        return self.dpy.get_atom(atom_name)
+
+    def get_atom_name(self, atom):
+        return self.dpy.get_atom_name(atom)
