@@ -1,3 +1,5 @@
+import re
+
 from Xlib import X, Xatom
 import Xlib.display
 from Xlib.XK import string_to_keysym, load_keysym_group
@@ -22,6 +24,8 @@ class WM(object):
         self.property_handlers = {}
         self.create_handlers = []
         self.destroy_handlers = {}
+
+        self.re_cache = {}
 
         self.dpy = Xlib.display.Display()
         self.root = self.dpy.screen().root
@@ -57,9 +61,20 @@ class WM(object):
     def on_key(self, key):
         return self.bind_key(self.root, key)
 
-    def on_create(self, func):
-        self.create_handlers.append(func)
-        return func
+    def on_create(self, *args, **matchers):
+        if args:
+            self.create_handlers.append(args[0])
+            return args[0]
+
+        def inner(func):
+            def match_window(wm):
+                if wm.is_match(wm.event_window, **matchers):
+                    func(wm)
+
+            self.create_handlers.append(match_window)
+            return func
+
+        return inner
 
     def on_destroy(self, window):
         def inner(func):
@@ -131,6 +146,17 @@ class WM(object):
         else:
             return d.value
 
+    def match_string(self, pattern, data):
+        if not data:
+            return False
+
+        try:
+            r = self.re_cache[pattern]
+        except KeyError:
+            r = self.re_cache[pattern] = re.compile(pattern)
+
+        return r.match(data)
+
     def is_match(self, window, name=None, cls=None, role=None, desktop=None):
         match = True
         try:
@@ -139,13 +165,13 @@ class WM(object):
             wname = wclass = None
 
         if match and name:
-            match = name == wname
+            match = self.match_string(name, wname)
 
         if match and cls:
-            match = cls == wclass
+            match = self.match_string(cls, wclass)
 
         if match and role:
-            match = self.get_window_role(window) == role
+            match = self.match_string(role, self.get_window_role(window))
 
         if match and desktop:
             match = self.get_window_desktop(window) == desktop

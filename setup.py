@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name     = 'orcsome',
-    version  = '0.2.1',
+    version  = '0.2.2',
     author   = 'Anton Bobrov',
     author_email = 'bobrov@vl.ru',
     description = 'NETWM compliant wm scripting extension',
