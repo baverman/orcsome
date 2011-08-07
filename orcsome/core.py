@@ -3,7 +3,7 @@ import Xlib.display
 from Xlib.XK import string_to_keysym, load_keysym_group
 from Xlib.protocol.event import ClientMessage
 
-mods = {
+MODIFICATORS = {
   'Alt': X.Mod1Mask,
   'Control': X.ControlMask,
   'Ctrl': X.ControlMask,
@@ -11,6 +11,8 @@ mods = {
   'Win': X.Mod4Mask,
   'Mod': X.Mod4Mask,
 }
+
+IGNORED_MOD_MASKS = (0, X.LockMask, X.Mod2Mask)
 
 load_keysym_group('xf86')
 
@@ -31,13 +33,23 @@ class WM(object):
         mod, key = parts[:-1], parts[-1]
         modmask = 0
         for m in mod:
-            modmask |= mods[m]
+            try:
+                modmask |= MODIFICATORS[m]
+            except KeyError:
+                raise Exception('Invalid modificator [%s]' % m)
 
-        code = self.dpy.keysym_to_keycode(string_to_keysym(key))
-        window.grab_key(code, modmask, True, X.GrabModeAsync, X.GrabModeAsync)
+        sym = string_to_keysym(key)
+        if sym is X.NoSymbol:
+            raise Exception('Invalid key name [%s]' % key)
+
+        code = self.dpy.keysym_to_keycode(sym)
 
         def inner(func):
-            self.key_handlers.setdefault(window.id, {})[(modmask, code)] = func
+            for imask in IGNORED_MOD_MASKS:
+                mask = modmask | imask
+                window.grab_key(code, mask, True, X.GrabModeAsync, X.GrabModeAsync)
+                self.key_handlers.setdefault(window.id, {})[(mask, code)] = func
+
             return func
 
         return inner
