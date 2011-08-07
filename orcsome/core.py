@@ -19,6 +19,7 @@ class WM(object):
         self.key_handlers = {}
         self.property_handlers = {}
         self.create_handlers = []
+        self.destroy_handlers = {}
 
         self.dpy = Xlib.display.Display()
         self.root = self.dpy.screen().root
@@ -48,6 +49,13 @@ class WM(object):
         self.create_handlers.append(func)
         return func
 
+    def on_destroy(self, window):
+        def inner(func):
+            self.destroy_handlers.setdefault(window.id, []).append(func)
+            return func
+
+        return inner
+
     def on_property_change(self, *props):
         def inner(func):
             for p in props:
@@ -60,13 +68,20 @@ class WM(object):
 
     def get_clients(self):
         result = []
-        wids = self.root.get_full_property(
-            self.dpy.intern_atom('_NET_CLIENT_LIST'), Xatom.WINDOW).value
+        wids = self.root.get_full_property(self.get_atom('_NET_CLIENT_LIST'), Xatom.WINDOW).value
 
         for wid in wids:
             result.append(self.dpy.create_resource_object('window', wid))
 
         return result
+
+    @property
+    def current_window(self):
+        result = self.root.get_full_property(self.get_atom('_NET_ACTIVE_WINDOW'), Xatom.WINDOW)
+        if result:
+            return self.dpy.create_resource_object('window', result.value[0])
+
+        return None
 
     @property
     def current_desktop(self):
@@ -172,6 +187,18 @@ class WM(object):
                     wid = event.window.id
                     if wid in self.key_handlers:
                         del self.key_handlers[wid]
+
+                    try:
+                        handlers = self.destroy_handlers[event.window.id]
+                    except KeyError:
+                        pass
+                    else:
+                        self.event = event
+                        self.event_window = event.window
+                        for h in handlers:
+                            h(self)
+
+                        del self.destroy_handlers[event.window.id]
 
                 elif etype == X.PropertyNotify:
                     atom = event.atom
