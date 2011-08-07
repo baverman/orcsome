@@ -2,10 +2,10 @@ from setuptools import setup, find_packages
 
 setup(
     name     = 'orcsome',
-    version  = '0.2',
+    version  = '0.2.1',
     author   = 'Anton Bobrov',
     author_email = 'bobrov@vl.ru',
-    description = 'EWHM compliant wm scripting extension',
+    description = 'NETWM compliant wm scripting extension',
     #long_description = open('README.rst').read(),
     zip_safe   = False,
     packages = find_packages(exclude=('tests', )),
