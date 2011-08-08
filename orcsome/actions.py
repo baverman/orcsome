@@ -69,26 +69,26 @@ def spawn_or_raise(cmd, switch_to_desktop=None, bring_to_current=False, on_creat
 
     return inner
 
-def focus_next(wm, c=None):
+def _focus(wm, window, direction):
+    clients = wm.find_clients(wm.get_clients(), desktop=wm.get_window_desktop(window))
+    idx = clients.index(window)
+    newc = clients[(idx + direction) % len(clients)]
+    wm.focus_and_raise(newc)
+
+def focus_next(wm, window=None):
     """Focus next client on current desktop.
 
     next/prev are defined by client creation time
     """
+    _focus(wm, window or wm.current_window, 1)
 
-    c = c or wm.event_window
-    clients = wm.find_clients(wm.get_clients(), desktop=wm.get_window_desktop(c))
-    idx = clients.index(c)
-    newc = clients[(idx + 1) % len(clients)]
-    wm.focus_and_raise(newc)
-
-def focus_prev(wm, c=None):
+def focus_prev(wm, window=None):
     """Focus previous client on current desktop.
 
     next/prev are defined by client creation time
     """
+    _focus(wm, window or wm.current_window, -1)
 
-    c = c or wm.event_window
-    clients = wm.find_clients(wm.get_clients(), desktop=wm.get_window_desktop(c))
-    idx = clients.index(c)
-    newc = clients[(idx - 1) % len(clients)]
-    wm.focus_and_raise(newc)
+def close(wm, window=None):
+    """Close window"""
+    wm.close_window(window or wm.current_window)

@@ -370,4 +370,9 @@ class WM(object):
         self._send_event(window, state_atom, [int(not decorate), undecorated_atom])
         self.dpy.flush()
 
+    def close_window(self, window):
+        self._send_event(window, self.get_atom("_NET_CLOSE_WINDOW"), [X.CurrentTime])
+        self.dpy.flush()
+
+
 State = namedtuple('State', 'maximized_vert, maximized_horz, undecorated')
