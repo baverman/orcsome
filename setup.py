@@ -1,8 +1,9 @@
 from setuptools import setup, find_packages
+from orcsome import VERSION
 
 setup(
     name     = 'orcsome',
-    version  = '0.2.2',
+    version  = VERSION,
     author   = 'Anton Bobrov',
     author_email = 'bobrov@vl.ru',
     description = 'NETWM compliant wm scripting extension',
@@ -11,16 +12,18 @@ setup(
     packages = find_packages(exclude=('tests', )),
     include_package_data = True,
     entry_points = {
-        'gui_scripts': [
+        'console_scripts': [
             'orcsome = orcsome.run:run',
         ]
     },
     url = 'http://github.com/baverman/orcsome',
     classifiers = [
         "Programming Language :: Python",
+        "Programming Language :: Python :: 2.6",
         "License :: OSI Approved :: MIT License",
         "Development Status :: 4 - Beta",
-        "Environment :: X11 Applications :: GTK",
+        "Environment :: X11 Applications",
+        "Topic :: Desktop Environment :: Window Managers",
         "Intended Audience :: Developers",
         "Intended Audience :: End Users/Desktop",
         "Natural Language :: English",
