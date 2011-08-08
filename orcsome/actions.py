@@ -53,9 +53,9 @@ def spawn_or_raise(cmd, switch_to_desktop=None, bring_to_current=False, on_creat
     :param \*\*matchers: see :meth:`~orcsome.core.WM.is_match`
     """
     def inner(wm):
-        clients = wm.find_client(wm.get_clients(), **matchers)
-        if clients:
-            wm.focus_and_raise(clients[0])
+        client = wm.find_client(wm.get_clients(), **matchers)
+        if client:
+            wm.focus_and_raise(client)
         else:
             if on_create:
                 if not _create_spawn_hook.installed:
@@ -76,7 +76,7 @@ def focus_next(wm, c=None):
     """
 
     c = c or wm.event_window
-    clients = wm.find_client(wm.get_clients(), desktop=wm.get_window_desktop(c))
+    clients = wm.find_clients(wm.get_clients(), desktop=wm.get_window_desktop(c))
     idx = clients.index(c)
     newc = clients[(idx + 1) % len(clients)]
     wm.focus_and_raise(newc)
@@ -88,8 +88,7 @@ def focus_prev(wm, c=None):
     """
 
     c = c or wm.event_window
-    clients = wm.find_client(wm.get_clients(), desktop=wm.get_window_desktop(c))
+    clients = wm.find_clients(wm.get_clients(), desktop=wm.get_window_desktop(c))
     idx = clients.index(c)
     newc = clients[(idx - 1) % len(clients)]
     wm.focus_and_raise(newc)
-

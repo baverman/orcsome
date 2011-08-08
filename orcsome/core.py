@@ -157,6 +157,16 @@ class WM(object):
 
         return result
 
+    def get_stacked_clients(self):
+        result = []
+        wids = self.root.get_full_property(
+            self.get_atom('_NET_CLIENT_LIST_STACKING'), Xatom.WINDOW).value
+
+        for wid in wids:
+            result.append(self.dpy.create_resource_object('window', wid))
+
+        return result
+
     @property
     def current_window(self):
         result = self.root.get_full_property(self.get_atom('_NET_ACTIVE_WINDOW'), Xatom.WINDOW)
@@ -233,13 +243,20 @@ class WM(object):
 
         return match
 
-    def find_client(self, clients, **matchers):
+    def find_clients(self, clients, **matchers):
         result = []
         for c in clients:
             if self.is_match(c, **matchers):
                 result.append(c)
 
         return result
+
+    def find_client(self, clients, **matchers):
+        result = self.find_clients(clients, **matchers)
+        try:
+            return result[0]
+        except IndexError:
+            return None
 
     def handle_create(self, window):
         window.change_attributes(
