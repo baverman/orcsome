@@ -55,6 +55,9 @@ def spawn_or_raise(cmd, switch_to_desktop=None, bring_to_current=False, on_creat
     def inner(wm):
         client = wm.find_client(wm.get_clients(), **matchers)
         if client:
+            if bring_to_current:
+                wm.change_window_desktop(client, wm.current_desktop)
+
             wm.focus_and_raise(client)
         else:
             if on_create:

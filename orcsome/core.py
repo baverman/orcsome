@@ -19,6 +19,9 @@ IGNORED_MOD_MASKS = (0, X.LockMask, X.Mod2Mask)
 
 load_keysym_group('xf86')
 
+WindowState = namedtuple('State', 'maximized_vert, maximized_horz, undecorated')
+
+
 class WM(object):
     def __init__(self):
         self.key_handlers = {}
@@ -358,7 +361,7 @@ class WM(object):
         state_atom = self.get_atom('_NET_WM_STATE')
         state = window.get_full_property(state_atom, Xatom.ATOM)
 
-        return State(
+        return WindowState(
             state and self.get_atom('_NET_WM_STATE_MAXIMIZED_VERT') in state.value,
             state and self.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ') in state.value,
             state and self.get_atom('_OB_WM_STATE_UNDECORATED') in state.value
@@ -374,5 +377,9 @@ class WM(object):
         self._send_event(window, self.get_atom("_NET_CLOSE_WINDOW"), [X.CurrentTime])
         self.dpy.flush()
 
+    def change_window_desktop(self, window, desktop):
+        if desktop < 0:
+            return
 
-State = namedtuple('State', 'maximized_vert, maximized_horz, undecorated')
+        self._send_event(window, self.get_atom("_NET_WM_DESKTOP"), [desktop])
+        self.dpy.flush()
