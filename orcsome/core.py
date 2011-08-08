@@ -1,4 +1,5 @@
 import re
+from collections import namedtuple
 
 from Xlib import X, Xatom
 import Xlib.display
@@ -33,6 +34,19 @@ class WM(object):
             event_mask=X.KeyPressMask | X.SubstructureNotifyMask )
 
     def bind_key(self, window, key):
+        """Signal decorator to to define window's hotkey
+
+        Can be useful with :meth:`on_create`::
+
+           @on_create(cls='URxvt')
+           def bind_urxvt_keys(wm):
+               # Custom key to close only urxvt windows
+               wm.bind_key(wm.event_window, 'Ctrl+d')(close)
+
+        ``key`` is string in format ``[mod + ... +]keysym`` where ``mod`` is
+        one of modificators [Alt, Shift, Control(Ctrl), Mod(Win)] and
+        ``keysym`` is key name.
+        """
         parts = key.split('+')
         mod, key = parts[:-1], parts[-1]
         modmask = 0
@@ -59,9 +73,45 @@ class WM(object):
         return inner
 
     def on_key(self, key):
+        """Signal decorator to define global hotkey
+
+        ::
+
+           on_key('Alt+Return')(
+               spawn('xterm'))
+
+           # or
+
+           @on_key('Alt+Return')
+           def spawn_terminal(wm):
+               spawn('xterm')(wm)
+
+        :param key: see :meth:`bind_key`
+        """
+
         return self.bind_key(self.root, key)
 
     def on_create(self, *args, **matchers):
+        """Signal decorator to handle window creation
+
+        Can be used in two forms. Listen to any window creation::
+
+           @on_create
+           def debug(wm):
+               print wm.event_window.get_wm_class()
+
+        And specific window::
+
+           @on_create(cls='Opera')
+           def use_firefox_luke(wm):
+               wm.close_window(wm.event_window)
+
+        Also, orcsome calls on_create handlers on its startup.
+        You can check ``wm.startup`` attribute do denote such event.
+
+        See :meth:`is_match` for ``**matchers`` argument description.
+        """
+
         if args:
             self.create_handlers.append(args[0])
             return args[0]
@@ -77,6 +127,8 @@ class WM(object):
         return inner
 
     def on_destroy(self, window):
+        """Signal decorator to handle window destroy"""
+
         def inner(func):
             self.destroy_handlers.setdefault(window.id, []).append(func)
             return func
@@ -84,6 +136,9 @@ class WM(object):
         return inner
 
     def on_property_change(self, *props):
+        """Signal decorator to handle window property change
+
+        """
         def inner(func):
             for p in props:
                 atom = self.dpy.intern_atom(p)
@@ -281,3 +336,21 @@ class WM(object):
 
     def get_atom_name(self, atom):
         return self.dpy.get_atom_name(atom)
+
+    def get_window_state(self, window):
+        state_atom = self.get_atom('_NET_WM_STATE')
+        state = window.get_full_property(state_atom, Xatom.ATOM)
+
+        return State(
+            state and self.get_atom('_NET_WM_STATE_MAXIMIZED_VERT') in state.value,
+            state and self.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ') in state.value,
+            state and self.get_atom('_OB_WM_STATE_UNDECORATED') in state.value
+        )
+
+    def decorate_window(self, window, decorate=True):
+        state_atom = self.get_atom('_NET_WM_STATE')
+        undecorated_atom = self.get_atom('_OB_WM_STATE_UNDECORATED')
+        self._send_event(window, state_atom, [int(not decorate), undecorated_atom])
+        self.dpy.flush()
+
+State = namedtuple('State', 'maximized_vert, maximized_horz, undecorated')

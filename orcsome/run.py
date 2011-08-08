@@ -15,10 +15,23 @@ def run():
     logger.addHandler(handler)
 
     wm = WM()
+
+    import imp
+    m = imp.new_module('orcsome.signals')
+    m.on_key = wm.on_key
+    m.on_create = wm.on_create
+    m.on_property_change = wm.on_property_change
+
+    sys.modules['orcsome.signals'] = m
+    env = {}
+
     try:
-        execfile(rcfile, {'wm':wm})
+        execfile(rcfile, env)
     except:
         logging.getLogger(__name__).exception('Error on loading %s' % rcfile)
         sys.exit(1)
 
     wm.run()
+
+def do():
+    pass
