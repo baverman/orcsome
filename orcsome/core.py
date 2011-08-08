@@ -29,6 +29,8 @@ class WM(object):
         self.create_handlers = []
         self.destroy_handlers = {}
 
+        self.focus_history = []
+
         self.re_cache = {}
 
         self.dpy = Xlib.display.Display()
@@ -241,7 +243,7 @@ class WM(object):
         if match and role:
             match = self.match_string(role, self.get_window_role(window))
 
-        if match and desktop:
+        if match and desktop is not None:
             match = self.get_window_desktop(window) == desktop
 
         return match
@@ -262,8 +264,8 @@ class WM(object):
             return None
 
     def handle_create(self, window):
-        window.change_attributes(
-            event_mask=X.KeyPressMask | X.StructureNotifyMask | X.PropertyChangeMask )
+        window.change_attributes(event_mask=X.KeyPressMask |
+            X.StructureNotifyMask | X.PropertyChangeMask | X.FocusChangeMask)
 
         self.event_window = window
         for handler in self.create_handlers:
@@ -312,6 +314,11 @@ class WM(object):
                             h(self)
 
                         del self.destroy_handlers[event.window.id]
+                    finally:
+                        try:
+                            self.focus_history.remove(event.window)
+                        except ValueError:
+                            pass
 
                 elif etype == X.PropertyNotify:
                     atom = event.atom
@@ -320,6 +327,15 @@ class WM(object):
                         self.event = event
                         for h in self.property_handlers[atom]:
                             h(self)
+
+                elif etype == X.FocusIn:
+                    try:
+                        self.focus_history.remove(event.window)
+                    except ValueError:
+                        pass
+
+                    self.focus_history.append(event.window)
+
             except (KeyboardInterrupt, SystemExit):
                 break
             except:
