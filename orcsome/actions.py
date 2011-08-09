@@ -1,4 +1,5 @@
 import time
+import os
 
 _create_spawn_queue = []
 
@@ -24,8 +25,7 @@ def spawn(cmd, switch_to_desktop=None):
        Starts from zero.
     """
     def inner(wm):
-        import subprocess
-        subprocess.Popen(cmd, shell=True)
+        _spawn(cmd)
         if switch_to_desktop is not None:
             wm.set_current_desktop(switch_to_desktop)
 
@@ -95,3 +95,20 @@ def focus_prev(wm, window=None):
 def close(wm, window=None):
     """Close window"""
     wm.close_window(window or wm.current_window)
+
+def _spawn(cmd):
+    pid = os.fork()
+    if pid != 0:
+        os.waitpid(pid, 0)
+        return
+
+    os.setsid()
+
+    pid = os.fork()
+    if pid != 0:
+        os._exit(0)
+
+    try:
+        os.execv(os.environ.get('SHELL', '/bin/sh'), ['shell', '-c', cmd])
+    except Exception:
+        os._exit(255)

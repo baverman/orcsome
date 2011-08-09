@@ -117,7 +117,7 @@ class WM(object):
            def use_firefox_luke(wm):
                wm.close_window(wm.event_window)
 
-        Also, orcsome calls on_create handlers on its startup.
+        Also, orcsome calls on_create handlers on startup.
         You can check ``wm.startup`` attribute do denote such event.
 
         See :meth:`is_match` for ``**matchers`` argument description.
