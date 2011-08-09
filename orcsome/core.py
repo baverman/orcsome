@@ -35,8 +35,6 @@ class WM(object):
 
         self.dpy = Xlib.display.Display()
         self.root = self.dpy.screen().root
-        self.root.change_attributes(
-            event_mask=X.KeyPressMask | X.SubstructureNotifyMask )
 
     def bind_key(self, window, key):
         """Signal decorator to to define window's hotkey
@@ -68,11 +66,19 @@ class WM(object):
         code = self.dpy.keysym_to_keycode(sym)
 
         def inner(func):
+            keys = []
+            wid = window.id
             for imask in IGNORED_MOD_MASKS:
                 mask = modmask | imask
                 window.grab_key(code, mask, True, X.GrabModeAsync, X.GrabModeAsync)
                 self.key_handlers.setdefault(window.id, {})[(mask, code)] = func
+                keys.append((mask, code))
 
+            def remove():
+                for k in keys:
+                    del self.key_handlers[wid][k]
+
+            func.remove = remove
             return func
 
         return inner
@@ -118,8 +124,14 @@ class WM(object):
         """
 
         if args:
-            self.create_handlers.append(args[0])
-            return args[0]
+            func = args[0]
+            self.create_handlers.append(func)
+
+            def remove():
+                self.create_handlers.remove(func)
+
+            func.remove = remove
+            return func
 
         def inner(func):
             def match_window(wm):
@@ -127,6 +139,11 @@ class WM(object):
                     func(wm)
 
             self.create_handlers.append(match_window)
+
+            def remove():
+                self.create_handlers.remove(match_window)
+
+            func.remove = remove
             return func
 
         return inner
@@ -140,15 +157,28 @@ class WM(object):
 
         return inner
 
-    def on_property_change(self, *props):
+    def on_property_change(self, *args):
         """Signal decorator to handle window property change
 
         """
         def inner(func):
-            for p in props:
-                atom = self.dpy.intern_atom(p)
-                self.property_handlers.setdefault(atom, []).append(func)
+            if getattr(args[0], 'id', False):
+                wid = args[0].id
+                props = args[1:]
+            else:
+                wid = None
+                props = args
 
+            for p in props:
+                atom = self.get_atom(p)
+                self.property_handlers.setdefault(atom, {}).setdefault(wid, []).append(func)
+
+            def remove():
+                for p in props:
+                    atom = self.get_atom(p)
+                    self.property_handlers[atom][wid].remove(func)
+
+            func.remove = remove
             return func
 
         return inner
@@ -272,6 +302,8 @@ class WM(object):
             handler(self)
 
     def run(self):
+        self.root.change_attributes(event_mask=X.KeyPressMask | X.SubstructureNotifyMask )
+
         self.startup = True
         for c in self.get_clients():
             self.handle_create(c)
@@ -299,10 +331,6 @@ class WM(object):
                     self.handle_create(event.window)
 
                 elif etype == X.DestroyNotify:
-                    wid = event.window.id
-                    if wid in self.key_handlers:
-                        del self.key_handlers[wid]
-
                     try:
                         handlers = self.destroy_handlers[event.window.id]
                     except KeyError:
@@ -312,21 +340,22 @@ class WM(object):
                         self.event_window = event.window
                         for h in handlers:
                             h(self)
-
-                        del self.destroy_handlers[event.window.id]
                     finally:
-                        try:
-                            self.focus_history.remove(event.window)
-                        except ValueError:
-                            pass
+                        self._clean_window_data(event.window)
 
                 elif etype == X.PropertyNotify:
                     atom = event.atom
-                    if atom in self.property_handlers:
+                    if event.state == 0 and atom in self.property_handlers:
+                        wphandlers = self.property_handlers[atom]
                         self.event_window = event.window
                         self.event = event
-                        for h in self.property_handlers[atom]:
-                            h(self)
+                        if event.window.id in wphandlers:
+                            for h in wphandlers[event.window.id]:
+                                h(self)
+
+                        if None in wphandlers:
+                            for h in wphandlers[None]:
+                                h(self)
 
                 elif etype == X.FocusIn:
                     try:
@@ -341,6 +370,26 @@ class WM(object):
             except:
                 import logging
                 logging.getLogger(__name__).exception('Boo')
+
+    def _clean_window_data(self, window):
+        wid = window.id
+        if wid in self.key_handlers:
+            del self.key_handlers[wid]
+
+        if wid in self.destroy_handlers:
+            self.destroy_handlers[wid]
+
+        try:
+            self.focus_history.remove(window)
+        except ValueError:
+            pass
+
+        for atom, whandlers in self.property_handlers.items():
+            if wid in whandlers:
+                del whandlers[wid]
+
+            if not self.property_handlers[atom]:
+                del self.property_handlers[atom]
 
     def focus_and_raise(self, window):
         self.activate_window_desktop(window)

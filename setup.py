@@ -6,7 +6,7 @@ setup(
     version  = VERSION,
     author   = 'Anton Bobrov',
     author_email = 'bobrov@vl.ru',
-    description = 'NETWM compliant wm scripting extension',
+    description = 'Scripting extension for NETWM compliant window managers',
     #long_description = open('README.rst').read(),
     zip_safe   = False,
     packages = find_packages(exclude=('tests', )),
