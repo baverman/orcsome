@@ -146,9 +146,9 @@ class WM(object):
             return func
 
         def inner(func):
-            def match_window(wm):
-                if wm.is_match(wm.event_window, **matchers):
-                    func(wm)
+            def match_window():
+                if self.is_match(self.event_window, **matchers):
+                    func()
 
             self.create_handlers.append(match_window)
 
@@ -313,7 +313,7 @@ class WM(object):
 
         self.event_window = window
         for handler in self.create_handlers:
-            handler(self)
+            handler()
 
     def run(self):
         self.root.change_attributes(event_mask=X.KeyPressMask | X.SubstructureNotifyMask )
@@ -339,7 +339,7 @@ class WM(object):
                     else:
                         self.event = event
                         self.event_window = event.window
-                        handler(self)
+                        handler()
 
                 elif etype == X.KeyRelease:
                     pass
@@ -358,7 +358,7 @@ class WM(object):
                         self.event = event
                         self.event_window = event.window
                         for h in handlers:
-                            h(self)
+                            h()
                     finally:
                         self._clean_window_data(event.window)
 
@@ -370,11 +370,11 @@ class WM(object):
                         self.event = event
                         if event.window.id in wphandlers:
                             for h in wphandlers[event.window.id]:
-                                h(self)
+                                h()
 
                         if None in wphandlers:
                             for h in wphandlers[None]:
-                                h(self)
+                                h()
 
                 elif etype == X.FocusIn:
                     try:
@@ -480,3 +480,30 @@ class WM(object):
         self.root.ungrab_key(X.AnyKey, X.AnyModifier)
         for c in self.get_clients():
             c.ungrab_key(X.AnyKey, X.AnyModifier)
+
+
+class TestWM(object):
+    def on_key(self, key):
+        assert isinstance(key, basestring), 'First argument to on_key must be string'
+        return lambda func: func
+
+    def on_create(self, *args, **matchers):
+        assert matchers or args
+
+        if args:
+            assert len(args) == 1
+            return args[0]
+
+        if matchers:
+            possible_args = set(('cls', 'role', 'name', 'desktop'))
+            assert possible_args.union(matchers) == possible_args, \
+                'Invalid matcher, must be one of %s' % possible_args
+
+        return lambda func: func
+
+    def on_property_change(self, *args):
+        assert all(isinstance(r, basestring) for r in args)
+        return lambda func: func
+
+    def on_destroy(self, window):
+        return lambda func: func
