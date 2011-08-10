@@ -1,6 +1,7 @@
 import os.path
 import logging
 import sys
+import signal
 
 from .core import WM
 
@@ -31,6 +32,13 @@ def run():
     except:
         logging.getLogger(__name__).exception('Error on loading %s' % rcfile)
         sys.exit(1)
+
+    def term_handler(signum, frame):
+        wm.dpy.close()
+        print 'Closed'
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, term_handler)
 
     wm.run()
 

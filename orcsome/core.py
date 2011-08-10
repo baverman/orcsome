@@ -192,20 +192,22 @@ class WM(object):
 
     def get_clients(self):
         result = []
-        wids = self.root.get_full_property(self.get_atom('_NET_CLIENT_LIST'), Xatom.WINDOW).value
+        wids = self.root.get_full_property(self.get_atom('_NET_CLIENT_LIST'), Xatom.WINDOW)
 
-        for wid in wids:
-            result.append(self.dpy.create_resource_object('window', wid))
+        if wids:
+            for wid in wids.value:
+                result.append(self.dpy.create_resource_object('window', wid))
 
         return result
 
     def get_stacked_clients(self):
         result = []
         wids = self.root.get_full_property(
-            self.get_atom('_NET_CLIENT_LIST_STACKING'), Xatom.WINDOW).value
+            self.get_atom('_NET_CLIENT_LIST_STACKING'), Xatom.WINDOW)
 
-        for wid in wids:
-            result.append(self.dpy.create_resource_object('window', wid))
+        if wids:
+            for wid in wids.value:
+                result.append(self.dpy.create_resource_object('window', wid))
 
         return result
 
