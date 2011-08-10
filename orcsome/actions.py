@@ -112,3 +112,7 @@ def _spawn(cmd):
         os.execv(os.environ.get('SHELL', '/bin/sh'), ['shell', '-c', cmd])
     except Exception:
         os._exit(255)
+
+def restart(wm):
+    from .core import RestartException
+    raise RestartException()

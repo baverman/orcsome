@@ -1,5 +1,6 @@
 import re
 from collections import namedtuple
+import logging
 
 from Xlib import X, Xatom
 import Xlib.display
@@ -21,6 +22,8 @@ load_keysym_group('xf86')
 
 WindowState = namedtuple('State', 'maximized_vert, maximized_horz, undecorated')
 
+class RestartException(Exception): pass
+
 
 class WM(object):
     def __init__(self):
@@ -36,7 +39,7 @@ class WM(object):
         self.dpy = Xlib.display.Display()
         self.root = self.dpy.screen().root
 
-    def bind_key(self, window, key):
+    def bind_key(self, window, keydef):
         """Signal decorator to to define window's hotkey
 
         Can be useful with :meth:`on_create`::
@@ -50,18 +53,20 @@ class WM(object):
         one of modificators [Alt, Shift, Control(Ctrl), Mod(Win)] and
         ``keysym`` is key name.
         """
-        parts = key.split('+')
+        parts = keydef.split('+')
         mod, key = parts[:-1], parts[-1]
         modmask = 0
         for m in mod:
             try:
                 modmask |= MODIFICATORS[m]
             except KeyError:
-                raise Exception('Invalid modificator [%s]' % m)
+                logging.getLogger(__name__).error('Invalid key [%s]' % keydef)
+                return lambda func: func
 
         sym = string_to_keysym(key)
         if sym is X.NoSymbol:
-            raise Exception('Invalid key name [%s]' % key)
+            logging.getLogger(__name__).error('Invalid key [%s]' % keydef)
+            return lambda func: func
 
         code = self.dpy.keysym_to_keycode(sym)
 
@@ -317,9 +322,14 @@ class WM(object):
         for c in self.get_clients():
             self.handle_create(c)
 
+    def handle_events(self):
         while True:
             try:
                 event = self.dpy.next_event()
+            except KeyboardInterrupt:
+                return True
+
+            try:
                 etype = event.type
                 if etype == X.KeyPress:
                     try:
@@ -375,7 +385,9 @@ class WM(object):
                     self.focus_history.append(event.window)
 
             except (KeyboardInterrupt, SystemExit):
-                break
+                return True
+            except RestartException:
+                return False
             except:
                 import logging
                 logging.getLogger(__name__).exception('Boo')
@@ -457,3 +469,14 @@ class WM(object):
 
         self._send_event(window, self.get_atom("_NET_WM_DESKTOP"), [desktop])
         self.dpy.flush()
+
+    def clear_handlers(self):
+        self.key_handlers.clear()
+        self.property_handlers.clear()
+        self.create_handlers[:] = []
+        self.destroy_handlers.clear()
+        self.focus_history[:] = []
+
+        self.root.ungrab_key(X.AnyKey, X.AnyModifier)
+        for c in self.get_clients():
+            c.ungrab_key(X.AnyKey, X.AnyModifier)
