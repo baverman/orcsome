@@ -5,3 +5,4 @@ from .core import WM
 on_key = WM.on_key
 on_create = WM.on_create
 on_property_change = WM.on_property_change
+on_destroy = WM.on_destroy

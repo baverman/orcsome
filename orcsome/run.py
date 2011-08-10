@@ -21,6 +21,7 @@ def run():
     m.on_key = wm.on_key
     m.on_create = wm.on_create
     m.on_property_change = wm.on_property_change
+    m.on_destroy = wm.on_destroy
 
     sys.modules['orcsome.signals'] = m
     env = {}

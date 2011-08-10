@@ -83,7 +83,7 @@ class WM(object):
 
         return inner
 
-    def on_key(self, key):
+    def on_key(self, *args):
         """Signal decorator to define global hotkey
 
         ::
@@ -100,7 +100,14 @@ class WM(object):
         :param key: see :meth:`bind_key`
         """
 
-        return self.bind_key(self.root, key)
+        if getattr(args[0], 'id', False):
+            window = args[0]
+            key = args[1]
+        else:
+            window = self.root
+            key = args[0]
+
+        return self.bind_key(window, key)
 
     def on_create(self, *args, **matchers):
         """Signal decorator to handle window creation
