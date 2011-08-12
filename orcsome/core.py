@@ -21,11 +21,32 @@ IGNORED_MOD_MASKS = (0, X.LockMask, X.Mod2Mask)
 load_keysym_group('xf86')
 
 WindowState = namedtuple('State', 'maximized_vert, maximized_horz, undecorated')
+'''Window state
+
+Has following attributes:
+
+maximized_vert
+  Is window maximized vertically.
+
+maximized_horz
+  Is window maximized horizontally.
+
+undecorated
+  Is window does not have decorations (openbox specific state).
+'''
 
 class RestartException(Exception): pass
 
 
 class WM(object):
+    """Core orcsome instance
+
+    Can be get in any time as::
+
+        import orcsome
+        wm = orcsome.get_wm()
+    """
+
     def __init__(self):
         self.key_handlers = {}
         self.property_handlers = {}
@@ -40,19 +61,6 @@ class WM(object):
         self.root = self.dpy.screen().root
 
     def bind_key(self, window, keydef):
-        """Signal decorator to to define window's hotkey
-
-        Can be useful with :meth:`on_create`::
-
-           @on_create(cls='URxvt')
-           def bind_urxvt_keys(wm):
-               # Custom key to close only urxvt windows
-               wm.bind_key(wm.event_window, 'Ctrl+d')(close)
-
-        ``key`` is string in format ``[mod + ... +]keysym`` where ``mod`` is
-        one of modificators [Alt, Shift, Control(Ctrl), Mod(Win)] and
-        ``keysym`` is key name.
-        """
         parts = keydef.split('+')
         mod, key = parts[:-1], parts[-1]
         modmask = 0
@@ -89,20 +97,24 @@ class WM(object):
         return inner
 
     def on_key(self, *args):
-        """Signal decorator to define global hotkey
+        """Signal decorator to to define hotkey
 
-        ::
+        You can define global key::
 
-           on_key('Alt+Return')(
+           wm.on_key('Alt+Return')(
                spawn('xterm'))
 
-           # or
+        Or key binded to specific window::
 
-           @on_key('Alt+Return')
-           def spawn_terminal(wm):
-               spawn('xterm')(wm)
+           @wm.on_create(cls='URxvt')
+           def bind_urxvt_keys():
+               # Custom key to close only urxvt windows
+               wm.on_key(wm.event_window, 'Ctrl+d')(
+                   close)
 
-        :param key: see :meth:`bind_key`
+        Key defenition is a string in format ``[mod + ... +]keysym`` where ``mod`` is
+        one of modificators [Alt, Shift, Control(Ctrl), Mod(Win)] and
+        ``keysym`` is a key name.
         """
 
         if getattr(args[0], 'id', False):
@@ -119,18 +131,19 @@ class WM(object):
 
         Can be used in two forms. Listen to any window creation::
 
-           @on_create
+           @wm.on_create
            def debug(wm):
                print wm.event_window.get_wm_class()
 
-        And specific window::
+        Or specific window::
 
-           @on_create(cls='Opera')
+           @wm.on_create(cls='Opera')
            def use_firefox_luke(wm):
                wm.close_window(wm.event_window)
+               spawn('firefox')()
 
-        Also, orcsome calls on_create handlers on startup.
-        You can check ``wm.startup`` attribute do denote such event.
+        Also, orcsome calls on_create handlers on its startup.
+        You can check ``wm.startup`` attribute to denote such event.
 
         See :meth:`is_match` for ``**matchers`` argument description.
         """
@@ -172,6 +185,26 @@ class WM(object):
     def on_property_change(self, *args):
         """Signal decorator to handle window property change
 
+        One can handle any window property change::
+
+           @wm.on_property_change('_NET_WM_STATE')
+           def window_maximized_state_change():
+               state = wm.get_window_state(wm.event_window)
+               if state.maximized_vert and state.maximized_horz:
+                   print 'Look, ma! Window is maximized now!'
+
+        And cpecific window::
+
+           @wm.on_create
+           def switch_to_desktop():
+               if not wm.startup:
+                   if wm.activate_window_desktop(wm.event_window) is None:
+                       # Created window has no any attached desktop so wait for it
+                       @wm.on_property_change(wm.event_window, '_NET_WM_DESKTOP')
+                       def property_was_set():
+                           wm.activate_window_desktop(wm.event_window)
+                           property_was_set.remove()
+
         """
         def inner(func):
             if getattr(args[0], 'id', False):
@@ -196,6 +229,8 @@ class WM(object):
         return inner
 
     def get_clients(self):
+        """Return wm client list"""
+
         result = []
         wids = self.root.get_full_property(self.get_atom('_NET_CLIENT_LIST'), Xatom.WINDOW)
 
@@ -206,6 +241,11 @@ class WM(object):
         return result
 
     def get_stacked_clients(self):
+        """Return client list in stacked order.
+
+        Most top window will be last in list. Can be useful to determine window visibility.
+        """
+
         result = []
         wids = self.root.get_full_property(
             self.get_atom('_NET_CLIENT_LIST_STACKING'), Xatom.WINDOW)
@@ -218,6 +258,7 @@ class WM(object):
 
     @property
     def current_window(self):
+        """Return currently active (with input focus) window"""
         result = self.root.get_full_property(self.get_atom('_NET_ACTIVE_WINDOW'), Xatom.WINDOW)
         if result:
             return self.dpy.create_resource_object('window', result.value[0])
@@ -226,10 +267,24 @@ class WM(object):
 
     @property
     def current_desktop(self):
+        """Return current desktop number
+
+        Counts from zero.
+        """
         return self.root.get_full_property(
             self.dpy.intern_atom('_NET_CURRENT_DESKTOP'), 0).value[0]
 
     def get_window_desktop(self, window):
+        """Return window desktop.
+
+        Result is:
+
+        * number from 0 to desktop_count - 1
+        * -1 if window placed on all desktops
+        * None if window does not have desktop property
+
+        """
+
         d = window.get_full_property(self.dpy.intern_atom('_NET_WM_DESKTOP'), 0)
         if d:
             d = d.value[0]
@@ -241,6 +296,7 @@ class WM(object):
             return None
 
     def set_current_desktop(self, num):
+        """Activate desktop ``num``"""
         if num < 0:
             return
 
@@ -253,6 +309,7 @@ class WM(object):
         self.root.send_event(ev, event_mask=X.SubstructureRedirectMask)
 
     def get_window_role(self, window):
+        """Return WM_WINDOW_ROLE property"""
         d = window.get_full_property(
             self.dpy.intern_atom('WM_WINDOW_ROLE'), Xatom.STRING)
         if d is None or d.format != 8:
@@ -272,6 +329,28 @@ class WM(object):
         return r.match(data)
 
     def is_match(self, window, name=None, cls=None, role=None, desktop=None):
+        """Check if window suits given matchers.
+
+        Matchers keyword arguments are used in :meth:`on_create`,
+        :func:`~orcsome.actions.spawn_or_raise`. :meth:`find_clients` and
+        :meth:`find_client`.
+
+        name
+          window name (also referenced as `instance`).
+          The first part of ``WM_CLASS`` property.
+
+        cls
+          window class. The second part of ``WM_CLASS`` property.
+
+        role
+          window role. Value of ``WM_WINDOW_ROLE`` property.
+
+        desktop
+          matches windows placed on specific desktop. Must be int.
+
+        `name`, `cls` and `role` can be regular expressions.
+
+        """
         match = True
         try:
             wname, wclass = window.get_wm_class()
@@ -288,11 +367,17 @@ class WM(object):
             match = self.match_string(role, self.get_window_role(window))
 
         if match and desktop is not None:
-            match = self.get_window_desktop(window) == desktop
+            wd = self.get_window_desktop(window)
+            match = wd == -1 or wd == desktop
 
         return match
 
     def find_clients(self, clients, **matchers):
+        """Return matching clients list
+
+        :param clients: window list returned by :meth:`get_clients` or :meth:`get_stacked_clients`.
+        :param \*\*matchers: keyword arguments defined in :meth:`is_match`
+        """
         result = []
         for c in clients:
             if self.is_match(c, **matchers):
@@ -301,6 +386,11 @@ class WM(object):
         return result
 
     def find_client(self, clients, **matchers):
+        """Return first matching client
+
+        :param clients: window list returned by :meth:`get_clients` or :meth:`get_stacked_clients`.
+        :param \*\*matchers: keyword arguments defined in :meth:`is_match`
+        """
         result = self.find_clients(clients, **matchers)
         try:
             return result[0]
@@ -413,20 +503,31 @@ class WM(object):
                 del self.property_handlers[atom]
 
     def focus_and_raise(self, window):
+        """Activate window desktop, set input focus and raise it"""
         self.activate_window_desktop(window)
         window.configure(stack_mode=X.Above)
         window.set_input_focus(X.RevertToPointerRoot, X.CurrentTime)
         self.dpy.flush()
 
     def place_window_above(self, window):
+        """Float up window in wm stack"""
         window.configure(stack_mode=X.Above)
         self.dpy.flush()
 
     def place_window_below(self, window):
+        """Float down window in wm stack"""
         window.configure(stack_mode=X.Below)
         self.dpy.flush()
 
     def activate_window_desktop(self, window):
+        """Activate window desktop
+
+        Return:
+
+        * True if window is placed on different from current desktop
+        * False if window desktop is the same
+        * None if window does not have desktop property
+        """
         wd = self.get_window_desktop(window)
         if wd is not None:
             if self.current_desktop != wd:
@@ -438,12 +539,15 @@ class WM(object):
             return None
 
     def get_atom(self, atom_name):
+        """Return atom value"""
         return self.dpy.get_atom(atom_name)
 
     def get_atom_name(self, atom):
+        """Return atom string representation"""
         return self.dpy.get_atom_name(atom)
 
     def get_window_state(self, window):
+        """Return :class:`WindowState` instance"""
         state_atom = self.get_atom('_NET_WM_STATE')
         state = window.get_full_property(state_atom, Xatom.ATOM)
 
@@ -454,16 +558,25 @@ class WM(object):
         )
 
     def decorate_window(self, window, decorate=True):
+        """Decorate/undecorate window
+
+        :param decorate: undecorate window if False
+
+        .. note::
+            Openbox specific.
+        """
         state_atom = self.get_atom('_NET_WM_STATE')
         undecorated_atom = self.get_atom('_OB_WM_STATE_UNDECORATED')
         self._send_event(window, state_atom, [int(not decorate), undecorated_atom])
         self.dpy.flush()
 
     def close_window(self, window):
+        """Send request to wm to close window"""
         self._send_event(window, self.get_atom("_NET_CLOSE_WINDOW"), [X.CurrentTime])
         self.dpy.flush()
 
     def change_window_desktop(self, window, desktop):
+        """Move window to ``desktop``"""
         if desktop < 0:
             return
 

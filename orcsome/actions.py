@@ -119,5 +119,6 @@ def _spawn(cmd):
         os._exit(255)
 
 def restart():
+    """Restart orcsome"""
     from .core import RestartException
     raise RestartException()
