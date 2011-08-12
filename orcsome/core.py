@@ -368,7 +368,7 @@ class WM(object):
 
         if match and desktop is not None:
             wd = self.get_window_desktop(window)
-            match = wd == -1 or wd == desktop
+            match = wd == desktop
 
         return match
 
@@ -502,12 +502,15 @@ class WM(object):
             if not self.property_handlers[atom]:
                 del self.property_handlers[atom]
 
+    def focus_window(self, window):
+        self._send_event(window, self.get_atom("_NET_ACTIVE_WINDOW"), [2, X.CurrentTime])
+        self.dpy.flush()
+
     def focus_and_raise(self, window):
         """Activate window desktop, set input focus and raise it"""
         self.activate_window_desktop(window)
         window.configure(stack_mode=X.Above)
-        window.set_input_focus(X.RevertToPointerRoot, X.CurrentTime)
-        self.dpy.flush()
+        self.focus_window(window)
 
     def place_window_above(self, window):
         """Float up window in wm stack"""
