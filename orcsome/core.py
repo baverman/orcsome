@@ -53,12 +53,23 @@ class WM(object):
         self.create_handlers = []
         self.destroy_handlers = {}
 
+        self.grab_keyboard_handler = None
+        self.grab_pointer_handler = None
+
         self.focus_history = []
 
         self.re_cache = {}
 
         self.dpy = Xlib.display.Display()
         self.root = self.dpy.screen().root
+
+    def keycode(self, key):
+        sym = string_to_keysym(key)
+        if sym is X.NoSymbol:
+            logging.getLogger(__name__).error('Invalid key [%s]' % key)
+            return None
+
+        return self.dpy.keysym_to_keycode(sym)
 
     def bind_key(self, window, keydef):
         parts = keydef.split('+')
@@ -422,17 +433,21 @@ class WM(object):
             try:
                 etype = event.type
                 if etype == X.KeyPress:
-                    try:
-                        handler = self.key_handlers[event.window.id][(event.state, event.detail)]
-                    except KeyError:
-                        pass
+                    if self.grab_keyboard_handler:
+                        self.grab_keyboard_handler(True, event.state, event.detail)
                     else:
-                        self.event = event
-                        self.event_window = event.window
-                        handler()
+                        try:
+                            handler = self.key_handlers[event.window.id][(event.state, event.detail)]
+                        except KeyError:
+                            pass
+                        else:
+                            self.event = event
+                            self.event_window = event.window
+                            handler()
 
                 elif etype == X.KeyRelease:
-                    pass
+                    if self.grab_keyboard_handler:
+                        self.grab_keyboard_handler(False, event.state, event.detail)
 
                 elif etype == X.CreateNotify:
                     self.event = event
@@ -597,6 +612,37 @@ class WM(object):
         for c in self.get_clients():
             c.ungrab_key(X.AnyKey, X.AnyModifier)
 
+    def grab_keyboard(self, func):
+        if self.grab_keyboard_handler:
+            return False
+
+        result = self.root.grab_keyboard(False, X.GrabModeAsync, X.GrabModeAsync, X.CurrentTime)
+        if result == 0:
+            self.grab_keyboard_handler = func
+            return True
+
+        return False
+
+    def ungrab_keyboard(self):
+        self.grab_keyboard_handler = None
+        self.dpy.ungrab_keyboard(X.CurrentTime)
+
+    def grab_pointer(self, func, mask=None):
+        if self.grab_pointer_handler:
+            return False
+
+        result = self.root.grab_pointer(False, 0, X.GrabModeAsync, X.GrabModeAsync,
+            X.NONE, X.NONE, X.CurrentTime)
+
+        if result == 0:
+            self.grab_pointer_handler = func
+            return True
+
+        return False
+
+    def ungrab_pointer(self):
+        self.grab_pointer_handler = None
+        self.dpy.ungrab_pointer(X.CurrentTime)
 
 class TestWM(object):
     def on_key(self, key):
