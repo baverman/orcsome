@@ -9,11 +9,14 @@ def _load_rcfile(wm, rcfile):
     orcsome._wm = wm
 
     env = {}
+    sys.path.insert(0, os.path.dirname(rcfile))
     try:
         execfile(rcfile, env)
     except:
         logging.getLogger(__name__).exception('Error on loading %s' % rcfile)
         sys.exit(1)
+    finally:
+        sys.path.pop(0)
 
 
 def _check_rcfile(rcfile):
@@ -49,6 +52,7 @@ def run():
 
         while True:
             if wm.handle_events():
+                wm.clear_handlers(True)
                 wm.dpy.close()
                 sys.exit(0)
             else:

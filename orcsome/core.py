@@ -2,10 +2,12 @@ import re
 from collections import namedtuple
 import logging
 
-from Xlib import X, Xatom
+from Xlib import X, Xatom, threaded
 import Xlib.display
 from Xlib.XK import string_to_keysym, load_keysym_group
 from Xlib.protocol.event import ClientMessage
+
+from .xext import screen_saver
 
 MODIFICATORS = {
   'Alt': X.Mod1Mask,
@@ -52,6 +54,8 @@ class WM(object):
         self.property_handlers = {}
         self.create_handlers = []
         self.destroy_handlers = {}
+        self.init_handlers = []
+        self.deinit_handlers = []
 
         self.grab_keyboard_handler = None
         self.grab_pointer_handler = None
@@ -62,6 +66,8 @@ class WM(object):
 
         self.dpy = Xlib.display.Display()
         self.root = self.dpy.screen().root
+
+        screen_saver.init(self.dpy)
 
     def keycode(self, key):
         sym = string_to_keysym(key)
@@ -419,6 +425,9 @@ class WM(object):
     def run(self):
         self.root.change_attributes(event_mask=X.KeyPressMask | X.SubstructureNotifyMask )
 
+        for h in self.init_handlers:
+            h()
+
         self.startup = True
         for c in self.get_clients():
             self.handle_create(c)
@@ -601,16 +610,26 @@ class WM(object):
         self._send_event(window, self.get_atom("_NET_WM_DESKTOP"), [desktop])
         self.dpy.flush()
 
-    def clear_handlers(self):
+    def clear_handlers(self, is_exit=False):
         self.key_handlers.clear()
         self.property_handlers.clear()
         self.create_handlers[:] = []
         self.destroy_handlers.clear()
         self.focus_history[:] = []
 
-        self.root.ungrab_key(X.AnyKey, X.AnyModifier)
-        for c in self.get_clients():
-            c.ungrab_key(X.AnyKey, X.AnyModifier)
+        if not is_exit:
+            self.root.ungrab_key(X.AnyKey, X.AnyModifier)
+            for c in self.get_clients():
+                c.ungrab_key(X.AnyKey, X.AnyModifier)
+
+        for h in self.deinit_handlers:
+            try:
+                h()
+            except:
+                logging.getLogger(__name__).exception('Shutdown error')
+
+        self.init_handlers[:] = []
+        self.deinit_handlers[:] = []
 
     def grab_keyboard(self, func):
         if self.grab_keyboard_handler:
@@ -644,6 +663,16 @@ class WM(object):
         self.grab_pointer_handler = None
         self.dpy.ungrab_pointer(X.CurrentTime)
 
+
+    def on_init(self, func):
+        self.init_handlers.append(func)
+        return func
+
+    def on_deinit(self, func):
+        self.deinit_handlers.append(func)
+        return func
+
+
 class TestWM(object):
     def on_key(self, key):
         assert isinstance(key, basestring), 'First argument to on_key must be string'
@@ -669,3 +698,9 @@ class TestWM(object):
 
     def on_destroy(self, window):
         return lambda func: func
+
+    def on_init(self, func):
+        return func
+
+    def on_deinit(self, func):
+        return func
