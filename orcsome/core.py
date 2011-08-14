@@ -1,8 +1,10 @@
 import re
+import os, fcntl
 from collections import namedtuple
 import logging
+from select import select
 
-from Xlib import X, Xatom, threaded
+from Xlib import X, Xatom
 import Xlib.display
 from Xlib.XK import string_to_keysym, load_keysym_group
 from Xlib.protocol.event import ClientMessage
@@ -50,12 +52,17 @@ class WM(object):
     """
 
     def __init__(self):
+        self.rfifo, self.wfifo = os.pipe()
+        fl = fcntl.fcntl(self.rfifo, fcntl.F_GETFL)
+        fcntl.fcntl(self.rfifo, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
         self.key_handlers = {}
         self.property_handlers = {}
         self.create_handlers = []
         self.destroy_handlers = {}
         self.init_handlers = []
         self.deinit_handlers = []
+        self.signal_handlers = {}
 
         self.grab_keyboard_handler = None
         self.grab_pointer_handler = None
@@ -68,6 +75,9 @@ class WM(object):
         self.root = self.dpy.screen().root
 
         screen_saver.init(self.dpy)
+
+    def emit(self, signal):
+        os.write(self.wfifo, signal + '\n')
 
     def keycode(self, key):
         sym = string_to_keysym(key)
@@ -414,7 +424,7 @@ class WM(object):
         except IndexError:
             return None
 
-    def handle_create(self, window):
+    def process_create_window(self, window):
         window.change_attributes(event_mask=X.KeyPressMask |
             X.StructureNotifyMask | X.PropertyChangeMask | X.FocusChangeMask)
 
@@ -430,81 +440,124 @@ class WM(object):
 
         self.startup = True
         for c in self.get_clients():
-            self.handle_create(c)
+            self.process_create_window(c)
+
+    def handle_keypress(self, event):
+        if self.grab_keyboard_handler:
+            self.grab_keyboard_handler(True, event.state, event.detail)
+        else:
+            try:
+                handler = self.key_handlers[event.window.id][(event.state, event.detail)]
+            except KeyError:
+                pass
+            else:
+                self.event = event
+                self.event_window = event.window
+                handler()
+
+    def handle_keyrelease(self, event):
+        if self.grab_keyboard_handler:
+            self.grab_keyboard_handler(False, event.state, event.detail)
+
+    def handle_create(self, event):
+        self.event = event
+        self.startup = False
+        self.process_create_window(event.window)
+
+    def handle_destroy(self, event):
+        try:
+            handlers = self.destroy_handlers[event.window.id]
+        except KeyError:
+            pass
+        else:
+            self.event = event
+            self.event_window = event.window
+            for h in handlers:
+                h()
+        finally:
+            self._clean_window_data(event.window)
+
+    def handle_property(self, event):
+        atom = event.atom
+        if event.state == 0 and atom in self.property_handlers:
+            wphandlers = self.property_handlers[atom]
+            self.event_window = event.window
+            self.event = event
+            if event.window.id in wphandlers:
+                for h in wphandlers[event.window.id]:
+                    h()
+
+            if None in wphandlers:
+                for h in wphandlers[None]:
+                    h()
+
+    def handle_focusin(self, event):
+        try:
+            self.focus_history.remove(event.window)
+        except ValueError:
+            pass
+
+        self.focus_history.append(event.window)
+
 
     def handle_events(self):
+        handlers = {
+            X.KeyPress: self.handle_keypress,
+            X.KeyRelease: self.handle_keyrelease,
+            X.CreateNotify: self.handle_create,
+            X.DestroyNotify: self.handle_destroy,
+            X.FocusIn: self.handle_focusin,
+            X.PropertyNotify: self.handle_property,
+        }
+
         while True:
             try:
-                event = self.dpy.next_event()
+                readable, _, _ = select([self.dpy, self.rfifo], [], [], 10)
             except KeyboardInterrupt:
                 return True
 
-            try:
-                etype = event.type
-                if etype == X.KeyPress:
-                    if self.grab_keyboard_handler:
-                        self.grab_keyboard_handler(True, event.state, event.detail)
-                    else:
-                        try:
-                            handler = self.key_handlers[event.window.id][(event.state, event.detail)]
-                        except KeyError:
-                            pass
-                        else:
-                            self.event = event
-                            self.event_window = event.window
-                            handler()
+            if not readable:
+                continue
 
-                elif etype == X.KeyRelease:
-                    if self.grab_keyboard_handler:
-                        self.grab_keyboard_handler(False, event.state, event.detail)
+            if self.dpy in readable:
+                try:
+                    i = self.dpy.pending_events()
+                except KeyboardInterrupt:
+                    return True
 
-                elif etype == X.CreateNotify:
-                    self.event = event
-                    self.startup = False
-                    self.handle_create(event.window)
+                while i > 0:
+                    event = self.dpy.next_event()
+                    i = i - 1
 
-                elif etype == X.DestroyNotify:
                     try:
-                        handlers = self.destroy_handlers[event.window.id]
+                        h = handlers[event.type]
                     except KeyError:
-                        pass
-                    else:
-                        self.event = event
-                        self.event_window = event.window
-                        for h in handlers:
-                            h()
-                    finally:
-                        self._clean_window_data(event.window)
+                        continue
 
-                elif etype == X.PropertyNotify:
-                    atom = event.atom
-                    if event.state == 0 and atom in self.property_handlers:
-                        wphandlers = self.property_handlers[atom]
-                        self.event_window = event.window
-                        self.event = event
-                        if event.window.id in wphandlers:
-                            for h in wphandlers[event.window.id]:
-                                h()
-
-                        if None in wphandlers:
-                            for h in wphandlers[None]:
-                                h()
-
-                elif etype == X.FocusIn:
                     try:
-                        self.focus_history.remove(event.window)
-                    except ValueError:
-                        pass
+                        h(event)
+                    except (KeyboardInterrupt, SystemExit):
+                        return True
+                    except RestartException:
+                        return False
+                    except:
+                        import logging
+                        logging.getLogger(__name__).exception('Boo')
 
-                    self.focus_history.append(event.window)
+            if self.rfifo in readable:
+                for s in os.read(self.rfifo, 8192).splitlines():
+                    if s in self.signal_handlers:
+                        for h in self.signal_handlers[s]:
+                            try:
+                                h()
+                            except (KeyboardInterrupt, SystemExit):
+                                return True
+                            except RestartException:
+                                return False
+                            except:
+                                import logging
+                                logging.getLogger(__name__).exception('Boo')
 
-            except (KeyboardInterrupt, SystemExit):
-                return True
-            except RestartException:
-                return False
-            except:
-                import logging
-                logging.getLogger(__name__).exception('Boo')
 
     def _clean_window_data(self, window):
         wid = window.id
@@ -610,12 +663,14 @@ class WM(object):
         self._send_event(window, self.get_atom("_NET_WM_DESKTOP"), [desktop])
         self.dpy.flush()
 
-    def clear_handlers(self, is_exit=False):
+    def stop(self, is_exit=False):
         self.key_handlers.clear()
         self.property_handlers.clear()
         self.create_handlers[:] = []
         self.destroy_handlers.clear()
         self.focus_history[:] = []
+
+        self.signal_handlers.clear()
 
         if not is_exit:
             self.root.ungrab_key(X.AnyKey, X.AnyModifier)
@@ -671,6 +726,18 @@ class WM(object):
     def on_deinit(self, func):
         self.deinit_handlers.append(func)
         return func
+
+    def on_signal(self, signal):
+        def inner(func):
+            self.signal_handlers.setdefault(signal, []).append(func)
+
+            def remove():
+                self.signal_handlers[signal].remove(func)
+
+            func.remove = remove
+            return func
+
+        return inner
 
 
 class TestWM(object):

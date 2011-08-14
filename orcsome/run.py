@@ -46,18 +46,21 @@ def run():
 
     wm = WM()
 
+    def shutdown():
+        wm.stop(True)
+        wm.dpy.close()
+        sys.exit(0)
+
     while True:
         _load_rcfile(wm, rcfile)
         wm.run()
 
         while True:
             if wm.handle_events():
-                wm.clear_handlers(True)
-                wm.dpy.close()
-                sys.exit(0)
+                shutdown()
             else:
                 if _check_rcfile(rcfile):
-                    wm.clear_handlers()
+                    wm.stop()
                     print 'Restarting...'
                     break
 
