@@ -512,7 +512,7 @@ class WM(object):
 
         while True:
             try:
-                readable, _, _ = select([self.dpy, self.rfifo], [], [], 10)
+                readable, _, _ = select([self.dpy, self.rfifo], [], [])
             except KeyboardInterrupt:
                 return True
 
