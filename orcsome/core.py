@@ -425,15 +425,15 @@ class WM(object):
             return None
 
     def process_create_window(self, window):
-        window.change_attributes(event_mask=X.KeyPressMask |
-            X.StructureNotifyMask | X.PropertyChangeMask | X.FocusChangeMask)
+        window.change_attributes(event_mask=X.StructureNotifyMask |
+            X.PropertyChangeMask | X.FocusChangeMask)
 
         self.event_window = window
         for handler in self.create_handlers:
             handler()
 
     def run(self):
-        self.root.change_attributes(event_mask=X.KeyPressMask | X.SubstructureNotifyMask )
+        self.root.change_attributes(event_mask=X.SubstructureNotifyMask)
 
         for h in self.init_handlers:
             h()
