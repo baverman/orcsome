@@ -97,6 +97,12 @@ If you often pull changes from master brunch I recommend you following recipe:
      git pull
 
 
+ArchLinux
+'''''''''
+
+There is orcsome package in AUR.
+
+
 .. _pip: http://pip.openplans.org/
 
 
