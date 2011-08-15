@@ -1,21 +1,6 @@
-Orcsome
-=======
-
-.. raw:: html
-
-   <div class="sidebar" style="width:55px; padding-bottom:5px;">
-      <a class="FlattrButton" style="display:none;" href="http://packages.python.org/orcsome/"></a>
-      <noscript><a href="http://flattr.com/thing/371987/Orcsome" target="_blank">
-      <img src="http://api.flattr.com/button/flattr-badge-large.png" alt="Flattr this"
-      title="Flattr this" border="0" /></a></noscript>
-   </div>
-
 Orcsome is a scripting extension for NETWM compliant window managers. It can
 help a lot to customize your work environment.
 
-.. raw:: html
-
-   <div style:"float:clear">&nbsp;</div>
 
 Motivation
 ----------
@@ -127,19 +112,6 @@ Edit ``~/.config/orcsome/rc.py``::
 
 And start orcsome. That's all.
 
-
-Documentation
--------------
-
-.. toctree::
-
-   guide
-   actions
-   core
-   faq
-
-
-.. _contacts:
 
 Contacts
 --------

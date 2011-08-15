@@ -124,7 +124,7 @@ class WM(object):
         return inner
 
     def on_key(self, *args):
-        """Signal decorator to to define hotkey
+        """Signal decorator to define hotkey
 
         You can define global key::
 
@@ -220,7 +220,7 @@ class WM(object):
                if state.maximized_vert and state.maximized_horz:
                    print 'Look, ma! Window is maximized now!'
 
-        And cpecific window::
+        And specific window::
 
            @wm.on_create
            def switch_to_desktop():
@@ -580,6 +580,7 @@ class WM(object):
                 del self.property_handlers[atom]
 
     def focus_window(self, window):
+        """Activate window"""
         self._send_event(window, self.get_atom("_NET_ACTIVE_WINDOW"), [2, X.CurrentTime])
         self.dpy.flush()
 
@@ -717,7 +718,6 @@ class WM(object):
     def ungrab_pointer(self):
         self.grab_pointer_handler = None
         self.dpy.ungrab_pointer(X.CurrentTime)
-
 
     def on_init(self, func):
         self.init_handlers.append(func)
