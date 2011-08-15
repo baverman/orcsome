@@ -3,5 +3,6 @@
 /dist
 /*.egg-info
 /docs/_build
+/aur
 
 /.snaked_project
