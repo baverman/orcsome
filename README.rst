@@ -90,6 +90,9 @@ There is orcsome package in AUR.
 .. _pip: http://pip.openplans.org/
 
 
+`Documentation <http://packages.python.org/orcsome/>`_
+------------------------------------------------------
+
 Quick start
 -----------
 
