@@ -5,6 +5,7 @@ import logging
 from select import select
 
 from Xlib import X, Xatom
+from Xlib.error import BadWindow
 import Xlib.display
 from Xlib.XK import string_to_keysym, load_keysym_group
 from Xlib.protocol.event import ClientMessage
@@ -312,15 +313,15 @@ class WM(object):
 
         """
 
-        d = window.get_full_property(self.dpy.intern_atom('_NET_WM_DESKTOP'), 0)
+        d = self.get_window_property_safe(window, '_NET_WM_DESKTOP', 0)
         if d:
             d = d.value[0]
             if d == 0xffffffff:
                 return -1
             else:
                 return d
-        else:
-            return None
+
+        return None
 
     def set_current_desktop(self, num):
         """Activate desktop ``num``"""
@@ -337,8 +338,7 @@ class WM(object):
 
     def get_window_role(self, window):
         """Return WM_WINDOW_ROLE property"""
-        d = window.get_full_property(
-            self.dpy.intern_atom('WM_WINDOW_ROLE'), Xatom.STRING)
+        d = self.get_window_property_safe(window, 'WM_WINDOW_ROLE', Xatom.STRING)
         if d is None or d.format != 8:
             return None
         else:
@@ -629,8 +629,7 @@ class WM(object):
 
     def get_window_state(self, window):
         """Return :class:`WindowState` instance"""
-        state_atom = self.get_atom('_NET_WM_STATE')
-        state = window.get_full_property(state_atom, Xatom.ATOM)
+        state = self.get_window_property_safe(window, '_NET_WM_STATE', Xatom.ATOM)
 
         return WindowState(
             state and self.get_atom('_NET_WM_STATE_MAXIMIZED_VERT') in state.value,
@@ -738,6 +737,12 @@ class WM(object):
             return func
 
         return inner
+
+    def get_window_property_safe(self, window, atom_name, ptype):
+        try:
+            return window.get_full_property(self.get_atom(atom_name), ptype)
+        except BadWindow:
+            return None
 
 
 class TestWM(object):
