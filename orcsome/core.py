@@ -520,29 +520,33 @@ class WM(object):
                 continue
 
             if self.dpy in readable:
-                try:
-                    i = self.dpy.pending_events()
-                except KeyboardInterrupt:
-                    return True
-
-                while i > 0:
-                    event = self.dpy.next_event()
-                    i = i - 1
-
+                while True:
                     try:
-                        h = handlers[event.type]
-                    except KeyError:
-                        continue
-
-                    try:
-                        h(event)
-                    except (KeyboardInterrupt, SystemExit):
+                        i = self.dpy.pending_events()
+                    except KeyboardInterrupt:
                         return True
-                    except RestartException:
-                        return False
-                    except:
-                        import logging
-                        logging.getLogger(__name__).exception('Boo')
+
+                    if not i:
+                        break
+
+                    while i > 0:
+                        event = self.dpy.next_event()
+                        i = i - 1
+
+                        try:
+                            h = handlers[event.type]
+                        except KeyError:
+                            continue
+
+                        try:
+                            h(event)
+                        except (KeyboardInterrupt, SystemExit):
+                            return True
+                        except RestartException:
+                            return False
+                        except:
+                            import logging
+                            logging.getLogger(__name__).exception('Boo')
 
             if self.rfifo in readable:
                 for s in os.read(self.rfifo, 8192).splitlines():
