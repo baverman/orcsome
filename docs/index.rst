@@ -43,7 +43,7 @@ many window managers and allow to configure flexible workflows.
 Features
 --------
 
-* Written on python. It means very hackable.
+* Written in python. It means very hackable.
 
 * Optimization, cpu and memory efficiency are top goals.
 
