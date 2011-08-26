@@ -1,5 +1,14 @@
 from setuptools import setup, find_packages
 from orcsome import VERSION
+from setuptools.command import easy_install
+
+def install_script(self, dist, script_name, script_text, dev_path=None):
+    script_text = easy_install.get_script_header(script_text) + (
+        ''.join(script_text.splitlines(True)[1:]))
+
+    self.write_script(script_name, script_text, 'b')
+
+easy_install.easy_install.install_script = install_script
 
 setup(
     name     = 'orcsome',
@@ -11,11 +20,7 @@ setup(
     zip_safe   = False,
     packages = find_packages(exclude=('tests', )),
     include_package_data = True,
-    entry_points = {
-        'console_scripts': [
-            'orcsome = orcsome.run:run',
-        ]
-    },
+    scripts = ['bin/orcsome'],
     url = 'http://github.com/baverman/orcsome',
     classifiers = [
         "Programming Language :: Python",

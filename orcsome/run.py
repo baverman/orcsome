@@ -1,8 +1,10 @@
 import os.path
 import logging
 import sys
+import optparse
 
 from .core import WM, TestWM
+from . import VERSION
 
 def _load_rcfile(wm, rcfile):
     import orcsome
@@ -35,13 +37,27 @@ def _check_rcfile(rcfile):
     return True
 
 def run():
-    config_dir = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
-    rcfile = os.path.join(config_dir, 'orcsome', 'rc.py')
+    parser = optparse.OptionParser(version='%prog ' + VERSION)
+    parser.add_option('-c', '--config', dest='config', metavar='FILE', help='Path to config file')
+    parser.add_option('-l', '--log', dest='log', metavar='FILE', help='Path to log file')
 
-    logger = logging.getLogger('orcsome')
-    logger.setLevel(logging.ERROR)
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(name)s %(levelname)s: %(message)s"))
+    options, _ = parser.parse_args()
+
+    if options.config:
+        rcfile = options.config
+    else:
+        config_dir = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
+        rcfile = os.path.join(config_dir, 'orcsome', 'rc.py')
+
+
+    if options.log:
+        handler = logging.FileHandler(options.log)
+    else:
+        handler = logging.StreamHandler()
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s"))
     logger.addHandler(handler)
 
     wm = WM()
@@ -61,8 +77,5 @@ def run():
             else:
                 if _check_rcfile(rcfile):
                     wm.stop()
-                    print 'Restarting...'
+                    logging.getLogger(__name__).info('Restarting...')
                     break
-
-def do():
-    pass
