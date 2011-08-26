@@ -18,7 +18,6 @@ def _create_spawn_hook():
         elif wm.is_match(wm.event_window, **matchers):
             _create_spawn_queue.remove(r)
             handler(cd, cw)
-_create_spawn_hook.installed = False
 
 def spawn(cmd, switch_to_desktop=None):
     """Run specified cmd
@@ -65,9 +64,8 @@ def spawn_or_raise(cmd, switch_to_desktop=None, bring_to_current=False, on_creat
             wm.focus_and_raise(client)
         else:
             if on_create:
-                if not _create_spawn_hook.installed:
+                if not _create_spawn_hook in wm.create_handlers:
                     wm.on_create(_create_spawn_hook)
-                    _create_spawn_hook.installed = True
 
                 _create_spawn_queue.append((
                     time.time(), on_create, wm.current_window, wm.current_desktop, matchers))
