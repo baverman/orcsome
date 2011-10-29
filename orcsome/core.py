@@ -344,6 +344,14 @@ class WM(object):
         else:
             return d.value
 
+    def get_window_title(self, window):
+        """Return _NET_WM_NAME property"""
+        d = self.get_window_property_safe(window, '_NET_WM_NAME', self.get_atom('UTF8_STRING'))
+        if d is None or d.format != 8:
+            return None
+        else:
+            return d.value
+
     def match_string(self, pattern, data):
         if not data:
             return False
@@ -355,7 +363,7 @@ class WM(object):
 
         return r.match(data)
 
-    def is_match(self, window, name=None, cls=None, role=None, desktop=None):
+    def is_match(self, window, name=None, cls=None, role=None, desktop=None, title=None):
         """Check if window suits given matchers.
 
         Matchers keyword arguments are used in :meth:`on_create`,
@@ -375,7 +383,10 @@ class WM(object):
         desktop
           matches windows placed on specific desktop. Must be int.
 
-        `name`, `cls` and `role` can be regular expressions.
+        title
+          window title.
+
+        `name`, `cls`, `title` and `role` can be regular expressions.
 
         """
         match = True
@@ -392,6 +403,9 @@ class WM(object):
 
         if match and role:
             match = self.match_string(role, self.get_window_role(window))
+
+        if match and title:
+            match = self.match_string(title, self.get_window_title(window))
 
         if match and desktop is not None:
             wd = self.get_window_desktop(window)
