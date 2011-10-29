@@ -21,7 +21,7 @@ MODIFICATORS = {
   'Mod': X.Mod4Mask,
 }
 
-IGNORED_MOD_MASKS = (0, X.LockMask, X.Mod2Mask)
+IGNORED_MOD_MASKS = (0, X.LockMask, X.Mod2Mask, X.LockMask | X.Mod2Mask)
 
 load_keysym_group('xf86')
 
