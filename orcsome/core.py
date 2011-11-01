@@ -25,7 +25,7 @@ IGNORED_MOD_MASKS = (0, X.LockMask, X.Mod2Mask, X.LockMask | X.Mod2Mask)
 
 load_keysym_group('xf86')
 
-WindowState = namedtuple('State', 'maximized_vert, maximized_horz, undecorated')
+WindowState = namedtuple('State', 'maximized_vert, maximized_horz, undecorated, urgent')
 '''Window state
 
 Has following attributes:
@@ -38,6 +38,9 @@ maximized_horz
 
 undecorated
   Is window does not have decorations (openbox specific state).
+
+urgent
+  Is window demands attention.
 '''
 
 class RestartException(Exception): pass
@@ -652,7 +655,8 @@ class WM(object):
         return WindowState(
             state and self.get_atom('_NET_WM_STATE_MAXIMIZED_VERT') in state.value,
             state and self.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ') in state.value,
-            state and self.get_atom('_OB_WM_STATE_UNDECORATED') in state.value
+            state and self.get_atom('_OB_WM_STATE_UNDECORATED') in state.value,
+            state and self.get_atom('_NET_WM_STATE_DEMANDS_ATTENTION') in state.value,
         )
 
     def decorate_window(self, window, decorate=True):
