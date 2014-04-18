@@ -1,27 +1,30 @@
+import sys
 import os.path
 import logging
-import sys
-import optparse
+import argparse
 
 from .core import WM, TestWM
 from . import VERSION
 
-def _load_rcfile(wm, rcfile):
+logger = logging.getLogger(__name__)
+
+
+def load_config(wm, config):
     import orcsome
     orcsome._wm = wm
 
     env = {}
-    sys.path.insert(0, os.path.dirname(rcfile))
+    sys.path.insert(0, os.path.dirname(config))
     try:
-        execfile(rcfile, env)
+        execfile(config, env)
     except:
-        logging.getLogger(__name__).exception('Error on loading %s' % rcfile)
+        logger.exception('Error on loading %s' % config)
         sys.exit(1)
     finally:
         sys.path.pop(0)
 
 
-def _check_rcfile(rcfile):
+def check_config(config):
     wm = TestWM()
     import orcsome
     orcsome._wm = wm
@@ -29,53 +32,49 @@ def _check_rcfile(rcfile):
     env = {}
 
     try:
-        execfile(rcfile, env)
+        execfile(config, env)
     except:
-        logging.getLogger(__name__).exception('Config file check failed %s' % rcfile)
+        logger.exception('Config file check failed %s' % config)
         return False
 
     return True
 
+
 def run():
-    parser = optparse.OptionParser(version='%prog ' + VERSION)
-    parser.add_option('-c', '--config', dest='config', metavar='FILE', help='Path to config file')
-    parser.add_option('-l', '--log', dest='log', metavar='FILE', help='Path to log file')
+    parser = argparse.ArgumentParser(version='%prog ' + VERSION)
+    parser.add_argument('-l', '--log', dest='log', metavar='FILE',
+        help='Path to log file (log to stdout by default)')
 
-    options, _ = parser.parse_args()
+    config_dir = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
+    default_rcfile = os.path.join(config_dir, 'orcsome', 'rc.py')
+    parser.add_argument('-c', '--config', dest='config', metavar='FILE',
+        default=default_rcfile, help='Path to config file (%(default)s)')
 
-    if options.config:
-        rcfile = options.config
-    else:
-        config_dir = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
-        rcfile = os.path.join(config_dir, 'orcsome', 'rc.py')
+    args = parser.parse_args()
 
-
-    if options.log:
-        handler = logging.FileHandler(options.log)
+    if args.log:
+        handler = logging.FileHandler(args.log)
     else:
         handler = logging.StreamHandler()
 
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s"))
-    logger.addHandler(handler)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(name)s %(levelname)s: %(message)s"))
+    root_logger.addHandler(handler)
 
     wm = WM()
 
-    def shutdown():
-        wm.stop(True)
-        wm.dpy.close()
-        sys.exit(0)
-
     while True:
-        _load_rcfile(wm, rcfile)
-        wm.run()
+        load_config(wm, args.config)
+        wm.init()
 
         while True:
-            if wm.handle_events():
-                shutdown()
+            if wm.run():
+                wm.stop(True)
+                sys.exit(0)
             else:
-                if _check_rcfile(rcfile):
+                if check_config(args.config):
                     wm.stop()
-                    logging.getLogger(__name__).info('Restarting...')
+                    logger.info('Restarting...')
                     break

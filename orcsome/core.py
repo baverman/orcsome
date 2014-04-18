@@ -1,16 +1,14 @@
 import re
-import os, fcntl
-from collections import namedtuple
+import os
+import fcntl
 import logging
+
+from collections import namedtuple
 from select import select
 
-from Xlib import X, Xatom
-from Xlib.error import BadWindow
-import Xlib.display
-from Xlib.XK import string_to_keysym, load_keysym_group
-from Xlib.protocol.event import ClientMessage
+from . import xlib as X
 
-from .xext import screen_saver
+logger = logging.getLogger(__name__)
 
 MODIFICATORS = {
   'Alt': X.Mod1Mask,
@@ -23,7 +21,6 @@ MODIFICATORS = {
 
 IGNORED_MOD_MASKS = (0, X.LockMask, X.Mod2Mask, X.LockMask | X.Mod2Mask)
 
-load_keysym_group('xf86')
 
 WindowState = namedtuple('State', 'maximized_vert, maximized_horz, undecorated, urgent')
 '''Window state
@@ -75,21 +72,24 @@ class WM(object):
 
         self.re_cache = {}
 
-        self.dpy = Xlib.display.Display()
-        self.root = self.dpy.screen().root
+        self.dpy = X.XOpenDisplay(X.NULL)
+        if self.dpy == X.NULL:
+            raise Exception("Can't open display")
 
-        screen_saver.init(self.dpy)
+        self.fd = X.ConnectionNumber(self.dpy)
+        self.root = X.DefaultRootWindow(self.dpy)
+        self.atom = X.AtomCache(self.dpy)
 
     def emit(self, signal):
         os.write(self.wfifo, signal + '\n')
 
     def keycode(self, key):
-        sym = string_to_keysym(key)
+        sym = X.XStringToKeysym(key)
         if sym is X.NoSymbol:
-            logging.getLogger(__name__).error('Invalid key [%s]' % key)
+            logger.error('Invalid key [%s]' % key)
             return None
 
-        return self.dpy.keysym_to_keycode(sym)
+        return X.XKeysymToKeycode(self.dpy, sym)
 
     def bind_key(self, window, keydef):
         parts = keydef.split('+')
@@ -99,28 +99,27 @@ class WM(object):
             try:
                 modmask |= MODIFICATORS[m]
             except KeyError:
-                logging.getLogger(__name__).error('Invalid key [%s]' % keydef)
+                logger.error('Invalid key [%s]' % keydef)
                 return lambda func: func
 
-        sym = string_to_keysym(key)
+        sym = X.XStringToKeysym(key)
         if sym is X.NoSymbol:
-            logging.getLogger(__name__).error('Invalid key [%s]' % keydef)
+            logger.error('Invalid key [%s]' % keydef)
             return lambda func: func
 
-        code = self.dpy.keysym_to_keycode(sym)
+        code = X.XKeysymToKeycode(self.dpy, sym)
 
         def inner(func):
             keys = []
-            wid = window.id
             for imask in IGNORED_MOD_MASKS:
                 mask = modmask | imask
-                window.grab_key(code, mask, True, X.GrabModeAsync, X.GrabModeAsync)
-                self.key_handlers.setdefault(window.id, {})[(mask, code)] = func
+                X.XGrabKey(self.dpy, code, mask, window, True, X.GrabModeAsync, X.GrabModeAsync)
+                self.key_handlers.setdefault(window, {})[(mask, code)] = func
                 keys.append((mask, code))
 
             def remove():
                 for k in keys:
-                    del self.key_handlers[wid][k]
+                    del self.key_handlers[window][k]
 
             func.remove = remove
             return func
@@ -148,7 +147,7 @@ class WM(object):
         ``keysym`` is a key name.
         """
 
-        if getattr(args[0], 'id', False):
+        if type(args[0]) == long:
             window = args[0]
             key = args[1]
         else:
@@ -208,7 +207,7 @@ class WM(object):
         """Signal decorator to handle window destroy"""
 
         def inner(func):
-            self.destroy_handlers.setdefault(window.id, []).append(func)
+            self.destroy_handlers.setdefault(window, []).append(func)
             return func
 
         return inner
@@ -238,21 +237,21 @@ class WM(object):
 
         """
         def inner(func):
-            if getattr(args[0], 'id', False):
-                wid = args[0].id
+            if type(args[0]) == long:
+                window = args[0]
                 props = args[1:]
             else:
-                wid = None
+                window = None
                 props = args
 
             for p in props:
-                atom = self.get_atom(p)
-                self.property_handlers.setdefault(atom, {}).setdefault(wid, []).append(func)
+                atom = self.atom[p]
+                self.property_handlers.setdefault(atom, {}).setdefault(window, []).append(func)
 
             def remove():
                 for p in props:
-                    atom = self.get_atom(p)
-                    self.property_handlers[atom][wid].remove(func)
+                    atom = self.atom[p]
+                    self.property_handlers[atom][window].remove(func)
 
             func.remove = remove
             return func
@@ -261,40 +260,25 @@ class WM(object):
 
     def get_clients(self):
         """Return wm client list"""
-
-        result = []
-        wids = self.root.get_full_property(self.get_atom('_NET_CLIENT_LIST'), Xatom.WINDOW)
-
-        if wids:
-            for wid in wids.value:
-                result.append(self.dpy.create_resource_object('window', wid))
-
-        return result
+        return X.get_window_property(self.dpy, self.root,
+            self.atom['_NET_CLIENT_LIST'], self.atom['WINDOW']) or []
 
     def get_stacked_clients(self):
         """Return client list in stacked order.
 
         Most top window will be last in list. Can be useful to determine window visibility.
         """
-
-        result = []
-        wids = self.root.get_full_property(
-            self.get_atom('_NET_CLIENT_LIST_STACKING'), Xatom.WINDOW)
-
-        if wids:
-            for wid in wids.value:
-                result.append(self.dpy.create_resource_object('window', wid))
-
-        return result
+        return X.get_window_property(self.dpy, self.root,
+            self.atom['_NET_CLIENT_LIST_STACKING'], self.atom['WINDOW']) or []
 
     @property
     def current_window(self):
         """Return currently active (with input focus) window"""
-        result = self.root.get_full_property(self.get_atom('_NET_ACTIVE_WINDOW'), Xatom.WINDOW)
-        if result:
-            return self.dpy.create_resource_object('window', result.value[0])
+        result = X.get_window_property(self.dpy, self.root,
+            self.atom['_NET_ACTIVE_WINDOW'], self.atom['WINDOW'])
 
-        return None
+        if result:
+            return result[0]
 
     @property
     def current_desktop(self):
@@ -302,8 +286,8 @@ class WM(object):
 
         Counts from zero.
         """
-        return self.root.get_full_property(
-            self.dpy.intern_atom('_NET_CURRENT_DESKTOP'), 0).value[0]
+        return X.get_window_property(self.dpy, self.root,
+            self.atom['_NET_CURRENT_DESKTOP'])[0]
 
     def get_window_desktop(self, window):
         """Return window desktop.
@@ -316,44 +300,51 @@ class WM(object):
 
         """
 
-        d = self.get_window_property_safe(window, '_NET_WM_DESKTOP', 0)
+        d = X.get_window_property(self.dpy, window, self.atom['_NET_WM_DESKTOP'], 0)
         if d:
-            d = d.value[0]
+            d = d[0]
             if d == 0xffffffff:
                 return -1
             else:
                 return d
-
-        return None
 
     def set_current_desktop(self, num):
         """Activate desktop ``num``"""
         if num < 0:
             return
 
-        self._send_event(self.root, self.dpy.intern_atom('_NET_CURRENT_DESKTOP'), [num])
-        self.dpy.flush()
+        self._send_event(self.root, self.atom['_NET_CURRENT_DESKTOP'], [num])
+        self._flush()
 
-    def _send_event(self, window, ctype, data, mask=None):
+    def _send_event(self, window, mtype, data):
         data = (data + ([0] * (5 - len(data))))[:5]
-        ev = ClientMessage(window=window, client_type=ctype, data=(32, (data)))
-        self.root.send_event(ev, event_mask=X.SubstructureRedirectMask)
+        ev = X.ffi.new('XClientMessageEvent *', {
+            'type': X.ClientMessage,
+            'window': window,
+            'message_type': mtype,
+            'format': 32,
+            'data': {'l': data},
+        })
+        X.XSendEvent(self.dpy, self.root, False, X.SubstructureRedirectMask,
+            X.ffi.cast('XEvent *', ev))
+
+    def _flush(self):
+        X.XFlush(self.dpy)
 
     def get_window_role(self, window):
         """Return WM_WINDOW_ROLE property"""
-        d = self.get_window_property_safe(window, 'WM_WINDOW_ROLE', Xatom.STRING)
-        if d is None or d.format != 8:
-            return None
-        else:
-            return d.value
+        return X.get_window_property(self.dpy, window,
+            self.atom['WM_WINDOW_ROLE'], self.atom['STRING'])
+
+    def get_window_class(self, window):
+        """Return WM_CLASS property"""
+        return X.get_window_property(self.dpy, window,
+            self.atom['WM_CLASS'], self.atom['STRING'], split=True)
 
     def get_window_title(self, window):
         """Return _NET_WM_NAME property"""
-        d = self.get_window_property_safe(window, '_NET_WM_NAME', self.get_atom('UTF8_STRING'))
-        if d is None or d.format != 8:
-            return None
-        else:
-            return d.value
+        return X.get_window_property(self.dpy, window,
+            self.atom['_NET_WM_NAME'], self.atom['UTF8_STRING'])
 
     def match_string(self, pattern, data):
         if not data:
@@ -394,7 +385,7 @@ class WM(object):
         """
         match = True
         try:
-            wname, wclass = window.get_wm_class()
+            wname, wclass = self.get_window_class(window)
         except TypeError:
             wname = wclass = None
 
@@ -442,15 +433,15 @@ class WM(object):
             return None
 
     def process_create_window(self, window):
-        window.change_attributes(event_mask=X.StructureNotifyMask |
+        X.XSelectInput(self.dpy, window, X.StructureNotifyMask |
             X.PropertyChangeMask | X.FocusChangeMask)
 
         self.event_window = window
         for handler in self.create_handlers:
             handler()
 
-    def run(self):
-        self.root.change_attributes(event_mask=X.SubstructureNotifyMask)
+    def init(self):
+        X.XSelectInput(self.dpy, self.root, X.SubstructureNotifyMask)
 
         for h in self.init_handlers:
             h()
@@ -459,12 +450,15 @@ class WM(object):
         for c in self.get_clients():
             self.process_create_window(c)
 
+        X.XSync(self.dpy, False)
+
     def handle_keypress(self, event):
+        event = event.xkey
         if self.grab_keyboard_handler:
-            self.grab_keyboard_handler(True, event.state, event.detail)
+            self.grab_keyboard_handler(True, event.state, event.keycode)
         else:
             try:
-                handler = self.key_handlers[event.window.id][(event.state, event.detail)]
+                handler = self.key_handlers[event.window][(event.state, event.keycode)]
             except KeyError:
                 pass
             else:
@@ -473,17 +467,20 @@ class WM(object):
                 handler()
 
     def handle_keyrelease(self, event):
+        event = event.xkey
         if self.grab_keyboard_handler:
-            self.grab_keyboard_handler(False, event.state, event.detail)
+            self.grab_keyboard_handler(False, event.state, event.keycode)
 
     def handle_create(self, event):
+        event = event.xcreatewindow
         self.event = event
         self.startup = False
         self.process_create_window(event.window)
 
     def handle_destroy(self, event):
+        event = event.xdestroywindow
         try:
-            handlers = self.destroy_handlers[event.window.id]
+            handlers = self.destroy_handlers[event.window]
         except KeyError:
             pass
         else:
@@ -495,13 +492,14 @@ class WM(object):
             self._clean_window_data(event.window)
 
     def handle_property(self, event):
+        event = event.xproperty
         atom = event.atom
         if event.state == 0 and atom in self.property_handlers:
             wphandlers = self.property_handlers[atom]
             self.event_window = event.window
             self.event = event
-            if event.window.id in wphandlers:
-                for h in wphandlers[event.window.id]:
+            if event.window in wphandlers:
+                for h in wphandlers[event.window]:
                     h()
 
             if None in wphandlers:
@@ -509,6 +507,7 @@ class WM(object):
                     h()
 
     def handle_focusin(self, event):
+        event = event.xfocus
         try:
             self.focus_history.remove(event.window)
         except ValueError:
@@ -517,7 +516,7 @@ class WM(object):
         self.focus_history.append(event.window)
 
 
-    def handle_events(self):
+    def run(self):
         handlers = {
             X.KeyPress: self.handle_keypress,
             X.KeyRelease: self.handle_keyrelease,
@@ -527,19 +526,21 @@ class WM(object):
             X.PropertyNotify: self.handle_property,
         }
 
+        event = X.create_event()
+
         while True:
             try:
-                readable, _, _ = select([self.dpy, self.rfifo], [], [])
+                readable, _, _ = select([self.fd, self.rfifo], [], [])
             except KeyboardInterrupt:
                 return True
 
             if not readable:
                 continue
 
-            if self.dpy in readable:
+            if self.fd in readable:
                 while True:
                     try:
-                        i = self.dpy.pending_events()
+                        i = X.XPending(self.dpy)
                     except KeyboardInterrupt:
                         return True
 
@@ -547,7 +548,7 @@ class WM(object):
                         break
 
                     while i > 0:
-                        event = self.dpy.next_event()
+                        X.XNextEvent(self.dpy, event)
                         i = i - 1
 
                         try:
@@ -562,8 +563,7 @@ class WM(object):
                         except RestartException:
                             return False
                         except:
-                            import logging
-                            logging.getLogger(__name__).exception('Boo')
+                            logger.exception('Boo')
 
             if self.rfifo in readable:
                 for s in os.read(self.rfifo, 8192).splitlines():
@@ -576,17 +576,15 @@ class WM(object):
                             except RestartException:
                                 return False
                             except:
-                                import logging
-                                logging.getLogger(__name__).exception('Boo')
+                                logger.exception('Boo')
 
 
     def _clean_window_data(self, window):
-        wid = window.id
-        if wid in self.key_handlers:
-            del self.key_handlers[wid]
+        if window in self.key_handlers:
+            del self.key_handlers[window]
 
-        if wid in self.destroy_handlers:
-            self.destroy_handlers[wid]
+        if window in self.destroy_handlers:
+            self.destroy_handlers[window]
 
         try:
             self.focus_history.remove(window)
@@ -594,32 +592,35 @@ class WM(object):
             pass
 
         for atom, whandlers in self.property_handlers.items():
-            if wid in whandlers:
-                del whandlers[wid]
+            if window in whandlers:
+                del whandlers[window]
 
             if not self.property_handlers[atom]:
                 del self.property_handlers[atom]
 
     def focus_window(self, window):
         """Activate window"""
-        self._send_event(window, self.get_atom("_NET_ACTIVE_WINDOW"), [2, X.CurrentTime])
-        self.dpy.flush()
+        self._send_event(window, self.atom['_NET_ACTIVE_WINDOW'], [2, X.CurrentTime])
+        self._flush()
 
     def focus_and_raise(self, window):
         """Activate window desktop, set input focus and raise it"""
         self.activate_window_desktop(window)
-        window.configure(stack_mode=X.Above)
+        X.XConfigureWindow(self.dpy, window, X.CWStackMode,
+            X.ffi.new('XWindowChanges *', {'stack_mode': X.Above}))
         self.focus_window(window)
 
     def place_window_above(self, window):
         """Float up window in wm stack"""
-        window.configure(stack_mode=X.Above)
-        self.dpy.flush()
+        X.XConfigureWindow(self.dpy, window, X.CWStackMode,
+            X.ffi.new('XWindowChanges *', {'stack_mode': X.Above}))
+        self._flush()
 
     def place_window_below(self, window):
         """Float down window in wm stack"""
-        window.configure(stack_mode=X.Below)
-        self.dpy.flush()
+        X.XConfigureWindow(self.dpy, window, X.CWStackMode,
+            X.ffi.new('XWindowChanges *', {'stack_mode': X.Below}))
+        self._flush()
 
     def activate_window_desktop(self, window):
         """Activate window desktop
@@ -640,23 +641,20 @@ class WM(object):
         else:
             return None
 
-    def get_atom(self, atom_name):
-        """Return atom value"""
-        return self.dpy.get_atom(atom_name)
-
     def get_atom_name(self, atom):
         """Return atom string representation"""
         return self.dpy.get_atom_name(atom)
 
     def get_window_state(self, window):
         """Return :class:`WindowState` instance"""
-        state = self.get_window_property_safe(window, '_NET_WM_STATE', Xatom.ATOM)
+        state = X.get_window_property(self.dpy, window,
+            self.atom['_NET_WM_STATE'], self.atom['ATOM'])
 
         return WindowState(
-            state and self.get_atom('_NET_WM_STATE_MAXIMIZED_VERT') in state.value,
-            state and self.get_atom('_NET_WM_STATE_MAXIMIZED_HORZ') in state.value,
-            state and self.get_atom('_OB_WM_STATE_UNDECORATED') in state.value,
-            state and self.get_atom('_NET_WM_STATE_DEMANDS_ATTENTION') in state.value,
+            state and self.atom['_NET_WM_STATE_MAXIMIZED_VERT'] in state,
+            state and self.atom['_NET_WM_STATE_MAXIMIZED_HORZ'] in state,
+            state and self.atom['_OB_WM_STATE_UNDECORATED'] in state,
+            state and self.atom['_NET_WM_STATE_DEMANDS_ATTENTION'] in state,
         )
 
     def decorate_window(self, window, decorate=True):
@@ -667,23 +665,23 @@ class WM(object):
         .. note::
             Openbox specific.
         """
-        state_atom = self.get_atom('_NET_WM_STATE')
-        undecorated_atom = self.get_atom('_OB_WM_STATE_UNDECORATED')
+        state_atom = self.atom['_NET_WM_STATE']
+        undecorated_atom = self.atom['_OB_WM_STATE_UNDECORATED']
         self._send_event(window, state_atom, [int(not decorate), undecorated_atom])
-        self.dpy.flush()
+        self._flush()
 
     def close_window(self, window):
         """Send request to wm to close window"""
-        self._send_event(window, self.get_atom("_NET_CLOSE_WINDOW"), [X.CurrentTime])
-        self.dpy.flush()
+        self._send_event(window, self.atom['_NET_CLOSE_WINDOW'], [X.CurrentTime])
+        self._flush()
 
     def change_window_desktop(self, window, desktop):
         """Move window to ``desktop``"""
         if desktop < 0:
             return
 
-        self._send_event(window, self.get_atom("_NET_WM_DESKTOP"), [desktop])
-        self.dpy.flush()
+        self._send_event(window, self.atom['_NET_WM_DESKTOP'], [desktop])
+        self._flush()
 
     def stop(self, is_exit=False):
         self.key_handlers.clear()
@@ -695,15 +693,15 @@ class WM(object):
         self.signal_handlers.clear()
 
         if not is_exit:
-            self.root.ungrab_key(X.AnyKey, X.AnyModifier)
-            for c in self.get_clients():
-                c.ungrab_key(X.AnyKey, X.AnyModifier)
+            X.XUngrabKey(self.dpy, X.AnyKey, X.AnyModifier, self.root)
+            for window in self.get_clients():
+                X.XUngrabKey(self.dpy, X.AnyKey, X.AnyModifier, window)
 
         for h in self.deinit_handlers:
             try:
                 h()
             except:
-                logging.getLogger(__name__).exception('Shutdown error')
+                logger.exception('Shutdown error')
 
         self.init_handlers[:] = []
         self.deinit_handlers[:] = []
@@ -712,7 +710,9 @@ class WM(object):
         if self.grab_keyboard_handler:
             return False
 
-        result = self.root.grab_keyboard(False, X.GrabModeAsync, X.GrabModeAsync, X.CurrentTime)
+        result = X.XGrabKeyboard(self.dpy, self.root, False, X.GrabModeAsync,
+            X.GrabModeAsync, X.CurrentTime)
+
         if result == 0:
             self.grab_keyboard_handler = func
             return True
@@ -721,14 +721,14 @@ class WM(object):
 
     def ungrab_keyboard(self):
         self.grab_keyboard_handler = None
-        self.dpy.ungrab_keyboard(X.CurrentTime)
+        return X.XUngrabKeyboard(self.dpy, X.CurrentTime)
 
     def grab_pointer(self, func, mask=None):
         if self.grab_pointer_handler:
             return False
 
-        result = self.root.grab_pointer(False, 0, X.GrabModeAsync, X.GrabModeAsync,
-            X.NONE, X.NONE, X.CurrentTime)
+        result = X.XGrabPointer(self.dpy, self.root, False, 0,
+            X.GrabModeAsync, X.GrabModeAsync, X.NONE, X.NONE, X.CurrentTime)
 
         if result == 0:
             self.grab_pointer_handler = func
@@ -738,7 +738,7 @@ class WM(object):
 
     def ungrab_pointer(self):
         self.grab_pointer_handler = None
-        self.dpy.ungrab_pointer(X.CurrentTime)
+        return X.XUngrabPointer(self.dpy, X.CurrentTime)
 
     def on_init(self, func):
         self.init_handlers.append(func)
@@ -760,11 +760,10 @@ class WM(object):
 
         return inner
 
-    def get_window_property_safe(self, window, atom_name, ptype):
-        try:
-            return window.get_full_property(self.get_atom(atom_name), ptype)
-        except BadWindow:
-            return None
+    def get_screen_saver_info(self):
+        result = X.ffi.new('XScreenSaverInfo *')
+        X.XScreenSaverQueryInfo(self.dpy, self.root, result)
+        return result
 
 
 class TestWM(object):

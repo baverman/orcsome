@@ -1,5 +1,5 @@
-import threading
 import os
+import threading
 from select import select
 
 class Timer(threading.Thread):
