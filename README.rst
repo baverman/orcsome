@@ -30,7 +30,8 @@ Features
 
 * Written on python. It means very hackable.
 
-* Optimization, cpu and memory efficiency are top goals.
+* Optimization, cpu and memory efficiency are top goals (cffi is used for xlib
+bindings).
 
 * Extensive use of python syntax to provide easy and expressive eDSL in
   configuration script.
@@ -42,9 +43,6 @@ Features
 
 Installation
 ------------
-
-Orcsome needs only ``python-xlib`` as dependency. Install it from your
-distributive repository.
 
 From PyPI
 '''''''''
@@ -90,7 +88,7 @@ There is orcsome package in AUR.
 .. _pip: http://pip.openplans.org/
 
 
-`Documentation <http://packages.python.org/orcsome/>`_
+`Documentation <http://pythonhosted.org/orcsome/>`_
 ------------------------------------------------------
 
 Quick start
