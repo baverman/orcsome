@@ -31,7 +31,7 @@ Features
 * Written on python. It means very hackable.
 
 * Optimization, cpu and memory efficiency are top goals (cffi is used for xlib
-bindings).
+  bindings).
 
 * Extensive use of python syntax to provide easy and expressive eDSL in
   configuration script.
@@ -89,10 +89,10 @@ There is orcsome package in AUR.
 
 
 `Documentation <http://pythonhosted.org/orcsome/>`_
-------------------------------------------------------
+---------------------------------------------------
 
 Quick start
------------
+'''''''''''
 
 The most common functionality needed is to bind hot keys to spawn or raise
 applications.
@@ -117,6 +117,15 @@ Edit ``~/.config/orcsome/rc.py``::
        spawn_or_raise('urxvtc -name rtorrent -e rtorrent-screen', name='rtorrent'))
 
 And start orcsome. That's all.
+
+
+TODO
+----
+
+* Tests
+* Python3 port
+* API to configure window geometry
+* Layouts (tiling)
 
 
 Contacts
