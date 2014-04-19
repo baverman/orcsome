@@ -174,6 +174,20 @@ ffi.cdef("""
            unsigned long eventMask;
     } XScreenSaverInfo;
 
+    typedef struct {
+            int type;
+            Display *display;	/* Display the event was read from */
+            XID resourceid;		/* resource id */
+            unsigned long serial;	/* serial number of failed request */
+            unsigned char error_code;	/* error code of failed request */
+            unsigned char request_code;	/* Major op-code of failed request */
+            unsigned char minor_code;	/* Minor op-code of failed request */
+    } XErrorEvent;
+    typedef int (*XErrorHandler) ( Display* display, XErrorEvent* event);
+    int XGetErrorText(Display *display, int code, char *buffer_return, int length);
+
+
+    XErrorHandler XSetErrorHandler (XErrorHandler handler);
 
     Display* XOpenDisplay(char *display_name);
     int XCloseDisplay(Display *display);

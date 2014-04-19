@@ -43,6 +43,14 @@ urgent
 class RestartException(Exception): pass
 
 
+@X.ffi.callback('XErrorHandler')
+def error_handler(display, error):
+    msg = X.ffi.new('char[100]')
+    X.XGetErrorText(error.display, error.error_code, msg, 100)
+    logger.error('{} ({}:{})'.format(X.ffi.string(msg), error.request_code, error.minor_code))
+    return 0
+
+
 class WM(object):
     """Core orcsome instance
 
@@ -451,6 +459,8 @@ class WM(object):
             self.process_create_window(c)
 
         X.XSync(self.dpy, False)
+
+        X.XSetErrorHandler(error_handler)
 
     def handle_keypress(self, event):
         event = event.xkey
