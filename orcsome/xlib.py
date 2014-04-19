@@ -39,6 +39,8 @@ ffi.cdef("""
     static const int Mod3Mask;
     static const int Mod4Mask;
     static const int Mod5Mask;
+    static const int AnyKey;
+    static const int AnyModifier;
 
     static const long NoSymbol;
 
