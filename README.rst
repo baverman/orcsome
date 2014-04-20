@@ -126,6 +126,7 @@ TODO
 * Python3 port
 * API to configure window geometry
 * Layouts (tiling)
+* Multiple screens
 
 
 Contacts
