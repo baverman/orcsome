@@ -47,6 +47,10 @@ ffi.cdef("""
     static const int GrabModeSync;
     static const int GrabModeAsync;
 
+    static const int PropModeReplace;
+    static const int PropModePrepend;
+    static const int PropModeAppend;
+
 
     typedef int Bool;
     typedef int Status;
@@ -222,6 +226,9 @@ ffi.cdef("""
         Atom *actual_type_return, int *actual_format_return,
         unsigned long *nitems_return, unsigned long *bytes_after_return,
         unsigned char **prop_return);
+    int XChangeProperty(Display *display, Window w, Atom property, Atom type,
+        int format, int mode, unsigned char *data, int nelements);
+    int XDeleteProperty(Display *display, Window w, Atom property);
     int XConfigureWindow(Display *display, Window w, unsigned int value_mask,
         XWindowChanges *changes);
 
@@ -300,6 +307,21 @@ def get_window_property(display, window, property, type=0, split=False, size=50)
 
     XFree(data[0])
     return result
+
+
+def set_window_property(display, window, property, type, fmt, values):
+    if fmt == 32:
+        if values:
+            data = ffi.cast('unsigned char *', ffi.new('XID[]', values))
+        else:
+            data = ''
+    elif fmt == 8:
+        data = values
+    else:
+        raise Exception('Unknown format {}'.format(fmt))
+
+    XChangeProperty(display, window, property, type, fmt, PropModeReplace,
+        data, len(values))
 
 
 def create_event():

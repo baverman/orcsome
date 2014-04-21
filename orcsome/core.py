@@ -88,6 +88,8 @@ class WM(object):
         self.root = X.DefaultRootWindow(self.dpy)
         self.atom = X.AtomCache(self.dpy)
 
+        self.undecorated_atom_name = '_OB_WM_STATE_UNDECORATED'
+
     def emit(self, signal):
         os.write(self.wfifo, signal + '\n')
 
@@ -663,21 +665,32 @@ class WM(object):
         return WindowState(
             state and self.atom['_NET_WM_STATE_MAXIMIZED_VERT'] in state,
             state and self.atom['_NET_WM_STATE_MAXIMIZED_HORZ'] in state,
-            state and self.atom['_OB_WM_STATE_UNDECORATED'] in state,
+            state and self.atom[self.undecorated_atom_name] in state,
             state and self.atom['_NET_WM_STATE_DEMANDS_ATTENTION'] in state,
         )
 
-    def decorate_window(self, window, decorate=True):
-        """Decorate/undecorate window
-
-        :param decorate: undecorate window if False
-
-        .. note::
-            Openbox specific.
-        """
+    def set_window_state(self, window, taskbar=None, pager=None,
+            decorate=None, otaskbar=None):
+        """Set window state"""
         state_atom = self.atom['_NET_WM_STATE']
-        undecorated_atom = self.atom['_OB_WM_STATE_UNDECORATED']
-        self._send_event(window, state_atom, [int(not decorate), undecorated_atom])
+
+        if decorate is not None:
+            params = not decorate, self.atom[self.undecorated_atom_name]
+            self._send_event(window, state_atom, list(params))
+
+        if taskbar is not None:
+            params = not taskbar, self.atom['_NET_WM_STATE_SKIP_TASKBAR']
+            self._send_event(window, state_atom, list(params))
+
+        if otaskbar is not None:
+            params = [] if otaskbar else [self.atom['_ORCSOME_SKIP_TASKBAR']]
+            X.set_window_property(self.dpy, window, self.atom['_ORCSOME_STATE'],
+                self.atom['ATOM'], 32, params)
+
+        if pager is not None:
+            params = not pager, self.atom['_NET_WM_STATE_SKIP_PAGER']
+            self._send_event(window, state_atom, list(params))
+
         self._flush()
 
     def close_window(self, window):
