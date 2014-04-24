@@ -670,7 +670,7 @@ class WM(object):
         )
 
     def set_window_state(self, window, taskbar=None, pager=None,
-            decorate=None, otaskbar=None):
+            decorate=None, otaskbar=None, vmax=None, hmax=None):
         """Set window state"""
         state_atom = self.atom['_NET_WM_STATE']
 
@@ -680,6 +680,11 @@ class WM(object):
 
         if taskbar is not None:
             params = not taskbar, self.atom['_NET_WM_STATE_SKIP_TASKBAR']
+            self._send_event(window, state_atom, list(params))
+
+        if vmax is not None and vmax == hmax:
+            params = vmax, self.atom['_NET_WM_STATE_MAXIMIZED_VERT'], \
+                self.atom['_NET_WM_STATE_MAXIMIZED_HORZ']
             self._send_event(window, state_atom, list(params))
 
         if otaskbar is not None:
