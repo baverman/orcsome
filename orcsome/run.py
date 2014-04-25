@@ -3,7 +3,8 @@ import os.path
 import logging
 import argparse
 
-from .core import WM, TestWM
+from .wm import WM
+from .testwm import TestWM
 from . import VERSION
 
 logger = logging.getLogger(__name__)

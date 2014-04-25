@@ -1,4 +1,3 @@
-
 class TestWM(object):
     def on_key(self, key):
         assert isinstance(key, basestring), 'First argument to on_key must be string'

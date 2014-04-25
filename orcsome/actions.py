@@ -4,7 +4,6 @@ import os
 from orcsome import get_wm
 
 _create_spawn_queue = []
-
 def _create_spawn_hook():
     if not _create_spawn_queue:
         return
@@ -15,9 +14,10 @@ def _create_spawn_hook():
         st, handler, cw, cd, matchers = r
         if st < t:
             _create_spawn_queue.remove(r)
-        elif wm.is_match(wm.event_window, **matchers):
+        elif wm.event_window.matches(**matchers):
             _create_spawn_queue.remove(r)
-            handler(cd, cw)
+            handler(cd, wm.window(cw))
+
 
 def spawn(cmd, switch_to_desktop=None):
     """Run specified cmd
@@ -29,9 +29,10 @@ def spawn(cmd, switch_to_desktop=None):
     def inner():
         _spawn(cmd)
         if switch_to_desktop is not None:
-            get_wm().set_current_desktop(switch_to_desktop)
+            get_wm().activate_desktop(switch_to_desktop)
 
     return inner
+
 
 def spawn_or_raise(cmd, switch_to_desktop=None, bring_to_current=False, on_create=None, **matchers):
     """Activate window or run command
@@ -67,19 +68,21 @@ def spawn_or_raise(cmd, switch_to_desktop=None, bring_to_current=False, on_creat
                 if not _create_spawn_hook in wm.create_handlers:
                     wm.on_create(_create_spawn_hook)
 
-                _create_spawn_queue.append((
-                    time.time(), on_create, wm.current_window, wm.current_desktop, matchers))
+                _create_spawn_queue.append((time.time(), on_create,
+                    long(wm.current_window), wm.current_desktop, matchers))
 
             spawn(cmd, switch_to_desktop)()
 
     return inner
 
+
 def _focus(window, direction):
     wm = get_wm()
-    clients = wm.find_clients(wm.get_clients(), desktop=wm.get_window_desktop(window))
+    clients = wm.find_clients(wm.get_clients(), desktop=window.desktop)
     idx = clients.index(window)
     newc = clients[(idx + direction) % len(clients)]
     wm.focus_and_raise(newc)
+
 
 def focus_next(window=None):
     """Focus next client on current desktop.
@@ -88,6 +91,7 @@ def focus_next(window=None):
     """
     _focus(window or get_wm().current_window, 1)
 
+
 def focus_prev(window=None):
     """Focus previous client on current desktop.
 
@@ -95,9 +99,11 @@ def focus_prev(window=None):
     """
     _focus(window or get_wm().current_window, -1)
 
+
 def close(window=None):
     """Close window"""
     get_wm().close_window(window or get_wm().current_window)
+
 
 def _spawn(cmd):
     pid = os.fork()
@@ -116,7 +122,8 @@ def _spawn(cmd):
     except Exception:
         os._exit(255)
 
+
 def restart():
     """Restart orcsome"""
-    from .core import RestartException
+    from .wm import RestartException
     raise RestartException()
