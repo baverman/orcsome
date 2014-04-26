@@ -72,13 +72,13 @@ class Window(long):
         `name`, `cls`, `title` and `role` can be regular expressions.
 
         """
-        if name and match_string(name, self.name): return True
-        if cls and match_string(cls, self.cls): return True
-        if role and match_string(role, self.role): return True
-        if title and match_string(title, self.title): return True
-        if desktop is not None and desktop == self.desktop: return True
+        if name and not match_string(name, self.name): return False
+        if cls and not match_string(cls, self.cls): return False
+        if role and not match_string(role, self.role): return False
+        if title and not match_string(title, self.title): return False
+        if desktop is not None and desktop != self.desktop: return False
 
-        return False
+        return True
 
     def _state(self):
         """Return _NET_WM_STATE"""

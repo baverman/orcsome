@@ -142,7 +142,7 @@ class WM(object):
 
         return self.bind_key(window, key)
 
-    def on_create(self, *args, **matchers):
+    def _on_create_manage(self, ignore_startup, *args, **matchers):
         """Signal decorator to handle window creation
 
         Can be used in two forms. Listen to any window creation::
@@ -163,9 +163,15 @@ class WM(object):
 
         See :meth:`is_match` for ``**matchers`` argument description.
         """
+        def inner(func):
+            if matchers:
+                ofunc = func
+                func = lambda: self.event_window.matches(**matchers) and ofunc()
 
-        if args:
-            func = args[0]
+            if ignore_startup:
+                oofunc = func
+                func = lambda: self.startup or oofunc()
+
             self.create_handlers.append(func)
 
             def remove():
@@ -174,20 +180,16 @@ class WM(object):
             func.remove = remove
             return func
 
-        def inner(func):
-            def match_window():
-                if self.event_window.matches(**matchers):
-                    func()
+        if args:
+            return inner(args[0])
+        else:
+            return inner
 
-            self.create_handlers.append(match_window)
+    def on_create(self, *args, **matchers):
+        return self._on_create_manage(True, *args, **matchers)
 
-            def remove():
-                self.create_handlers.remove(match_window)
-
-            func.remove = remove
-            return func
-
-        return inner
+    def on_manage(self, *args, **matchers):
+        return self._on_create_manage(False, *args, **matchers)
 
     def on_destroy(self, window):
         """Signal decorator to handle window destroy"""
