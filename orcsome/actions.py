@@ -26,12 +26,13 @@ def spawn(cmd, switch_to_desktop=None):
     :param switch_to_desktop: integer. Desktop number to activate after command start.
        Starts from zero.
     """
-    def inner():
-        _spawn(cmd)
-        if switch_to_desktop is not None:
-            get_wm().activate_desktop(switch_to_desktop)
+    _spawn(cmd)
+    if switch_to_desktop is not None:
+        get_wm().activate_desktop(switch_to_desktop)
 
-    return inner
+
+def activate_desktop(desktop):
+    get_wm().activate_desktop(desktop)
 
 
 def spawn_or_raise(cmd, switch_to_desktop=None, bring_to_current=False, on_create=None, **matchers):
@@ -55,25 +56,22 @@ def spawn_or_raise(cmd, switch_to_desktop=None, bring_to_current=False, on_creat
     :param on_create: on create handler, called after command spawn
     :param \*\*matchers: see :meth:`~orcsome.core.WM.is_match`
     """
-    def inner():
-        wm = get_wm()
-        client = wm.find_client(wm.get_clients(), **matchers)
-        if client:
-            if bring_to_current:
-                wm.change_window_desktop(client, wm.current_desktop)
+    wm = get_wm()
+    client = wm.find_client(wm.get_clients(), **matchers)
+    if client:
+        if bring_to_current:
+            wm.change_window_desktop(client, wm.current_desktop)
 
-            wm.focus_and_raise(client)
-        else:
-            if on_create:
-                if not _create_spawn_hook in wm.create_handlers:
-                    wm.on_create(_create_spawn_hook)
+        wm.focus_and_raise(client)
+    else:
+        if on_create:
+            if not _create_spawn_hook in wm.create_handlers:
+                wm.on_create(_create_spawn_hook)
 
-                _create_spawn_queue.append((time.time(), on_create,
-                    long(wm.current_window), wm.current_desktop, matchers))
+            _create_spawn_queue.append((time.time(), on_create,
+                long(wm.current_window), wm.current_desktop, matchers))
 
-            spawn(cmd, switch_to_desktop)()
-
-    return inner
+        spawn(cmd, switch_to_desktop)
 
 
 def _focus(window, direction):
@@ -127,3 +125,18 @@ def restart():
     """Restart orcsome"""
     from .wm import RestartException
     raise RestartException()
+
+
+class ActionCaller(object):
+    def __init__(self, decorator):
+        self.decorator = decorator
+
+    def __getattr__(self, name):
+        func = globals()[name]
+        def result(*args, **kwargs):
+            return self.decorator(lambda: func(*args, **kwargs))
+
+        return result
+
+    def __call__(self, func):
+        return self.decorator(func)

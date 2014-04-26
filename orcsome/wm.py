@@ -6,6 +6,7 @@ from select import select
 
 from . import xlib as X
 from .wrappers import Window
+from .actions import ActionCaller
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +87,12 @@ class WM(object):
                 modmask |= MODIFICATORS[m]
             except KeyError:
                 logger.error('Invalid key [%s]' % keydef)
-                return lambda func: func
+                return ActionCaller(lambda func: func)
 
         sym = X.XStringToKeysym(key)
         if sym is X.NoSymbol:
             logger.error('Invalid key [%s]' % keydef)
-            return lambda func: func
+            return ActionCaller(lambda func: func)
 
         code = X.XKeysymToKeycode(self.dpy, sym)
 
@@ -110,7 +111,7 @@ class WM(object):
             func.remove = remove
             return func
 
-        return inner
+        return ActionCaller(inner)
 
     def on_key(self, *args):
         """Signal decorator to define hotkey
@@ -183,7 +184,7 @@ class WM(object):
         if args:
             return inner(args[0])
         else:
-            return inner
+            return ActionCaller(inner)
 
     def on_create(self, *args, **matchers):
         return self._on_create_manage(True, *args, **matchers)
@@ -198,7 +199,7 @@ class WM(object):
             self.destroy_handlers.setdefault(window, []).append(func)
             return func
 
-        return inner
+        return ActionCaller(inner)
 
     def on_property_change(self, *args):
         """Signal decorator to handle window property change
@@ -245,7 +246,7 @@ class WM(object):
             func.remove = remove
             return func
 
-        return inner
+        return ActionCaller(inner)
 
     def get_clients(self, ids=False):
         """Return wm client list"""
