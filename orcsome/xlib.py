@@ -263,6 +263,8 @@ class AtomCache(object):
         return atom
 
 
+ITEM_SIZE = array('L').itemsize
+
 def get_window_property(display, window, property, type=0, split=False, size=50):
     type_return = ffi.new('Atom *')
     fmt_return = ffi.new('int *')
@@ -276,7 +278,7 @@ def get_window_property(display, window, property, type=0, split=False, size=50)
     bafter = bytes_after[0]
     result = b''
     if fmt == 32:
-        result += str(ffi.buffer(data[0], nitems_return[0]*4))
+        result += str(ffi.buffer(data[0], nitems_return[0]*ITEM_SIZE))
     elif fmt == 8:
         result += str(ffi.buffer(data[0], nitems_return[0]))
     elif not fmt:
@@ -290,7 +292,7 @@ def get_window_property(display, window, property, type=0, split=False, size=50)
             False, type, type_return, fmt_return, nitems_return, bytes_after, data)
         fmt = fmt_return[0]
         if fmt == 32:
-            result += str(ffi.buffer(data[0], nitems_return[0]*4))
+            result += str(ffi.buffer(data[0], nitems_return[0]*ITEM_SIZE))
         elif fmt == 8:
             result += str(ffi.buffer(data[0], nitems_return[0]))
         else:

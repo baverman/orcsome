@@ -134,7 +134,7 @@ class WM(object):
         ``keysym`` is a key name.
         """
 
-        if isinstance(args[0], long):
+        if isinstance(args[0], Window):
             window = args[0]
             key = args[1]
         else:
@@ -226,7 +226,7 @@ class WM(object):
 
         """
         def inner(func):
-            if isinstance(args[0], long):
+            if isinstance(args[0], Window):
                 window = args[0]
                 props = args[1:]
             else:

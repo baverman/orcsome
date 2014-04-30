@@ -1,7 +1,7 @@
 from . utils import lazy_attr, match_string
 from . import xlib as X
 
-class Window(long):
+class Window(int):
     __getattr__ = lazy_attr
 
     def _desktop(self):
