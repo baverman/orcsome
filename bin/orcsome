@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
-from orcsome.run import run
+import os
+import sys
 
-run()
+os.execl(sys.executable, 'orcsome', '-m', 'orcsome.run', *sys.argv[1:])

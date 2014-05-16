@@ -79,3 +79,6 @@ def run():
                     wm.stop()
                     logger.info('Restarting...')
                     break
+
+if __name__ == '__main__':
+    run()
