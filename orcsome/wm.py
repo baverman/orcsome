@@ -1,10 +1,8 @@
 import os
-import fcntl
 import logging
 
-from select import select
-
 from . import xlib as X
+from . import ev
 from .wrappers import Window
 from .actions import ActionCaller
 from .aliases import KEYS as KEY_ALIASES
@@ -37,10 +35,16 @@ class WM(object):
         wm = orcsome.get_wm()
     """
 
-    def __init__(self):
-        self.rfifo, self.wfifo = os.pipe()
-        fl = fcntl.fcntl(self.rfifo, fcntl.F_GETFL)
-        fcntl.fcntl(self.rfifo, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+    def __init__(self, loop):
+        self.handlers = {
+            X.KeyPress: self.handle_keypress,
+            X.KeyRelease: self.handle_keyrelease,
+            X.CreateNotify: self.handle_create,
+            X.DestroyNotify: self.handle_destroy,
+            X.FocusIn: self.handle_focusin,
+            X.PropertyNotify: self.handle_property,
+        }
+        self._event = X.ffi.new('XEvent *')
 
         self.key_handlers = {}
         self.property_handlers = {}
@@ -48,7 +52,7 @@ class WM(object):
         self.destroy_handlers = {}
         self.init_handlers = []
         self.deinit_handlers = []
-        self.signal_handlers = {}
+        self.timer_handlers = []
 
         self.grab_keyboard_handler = None
         self.grab_pointer_handler = None
@@ -64,6 +68,12 @@ class WM(object):
         self.atom = X.AtomCache(self.dpy)
 
         self.undecorated_atom_name = '_OB_WM_STATE_UNDECORATED'
+
+        self.loop = loop
+        self.xevent_watcher = ev.IOWatcher(self._xevent_cb, self.fd, ev.EV_READ)
+        self.xevent_watcher.start(self.loop)
+
+        self.restart_handler = None
 
     def window(self, window_id):
         window = Window(window_id)
@@ -127,7 +137,6 @@ class WM(object):
 
             return ActionCaller(inner)
         else:
-            print code_mmask_list
             return ActionCaller(lambda func: func)
 
     def on_key(self, *args):
@@ -261,6 +270,21 @@ class WM(object):
                     self.property_handlers[atom][window].remove(func)
 
             func.remove = remove
+            return func
+
+        return ActionCaller(inner)
+
+    def on_timer(self, timeout):
+        def inner(func):
+            def cb(l, w, e):
+                if func():
+                    timer.stop(self.loop)
+
+            self.timer_handlers.append(func)
+            timer = ev.TimerWatcher(cb, timeout, timeout)
+            func.start = lambda: timer.start(self.loop)
+            func.stop = lambda: timer.stop(self.loop)
+            func.again = lambda: timer.again(self.loop)
             return func
 
         return ActionCaller(inner)
@@ -429,61 +453,29 @@ class WM(object):
 
         self.focus_history.append(event.window)
 
-    def run(self):
-        handlers = {
-            X.KeyPress: self.handle_keypress,
-            X.KeyRelease: self.handle_keyrelease,
-            X.CreateNotify: self.handle_create,
-            X.DestroyNotify: self.handle_destroy,
-            X.FocusIn: self.handle_focusin,
-            X.PropertyNotify: self.handle_property,
-        }
-
-        event = X.create_event()
+    def _xevent_cb(self, loop, watcher, events):
+        event = self._event
         while True:
-            try:
-                readable, _, _ = select([self.fd, self.rfifo], [], [])
-            except KeyboardInterrupt:
-                return True
+            i = X.XPending(self.dpy)
+            if not i: break
 
-            if not readable:
-                continue
+            while i > 0:
+                X.XNextEvent(self.dpy, event)
+                i -= 1
 
-            if self.fd in readable:
-                while True:
-                    i = X.XPending(self.dpy)
-                    if not i: break
+                try:
+                    h = self.handlers[event.type]
+                except KeyError:
+                    continue
 
-                    while i > 0:
-                        X.XNextEvent(self.dpy, event)
-                        i -= 1
-
-                        try:
-                            h = handlers[event.type]
-                        except KeyError:
-                            continue
-
-                        try:
-                            h(event)
-                        except (KeyboardInterrupt, SystemExit):
-                            return True
-                        except RestartException:
-                            return False
-                        except:
-                            logger.exception('Boo')
-
-            if self.rfifo in readable:
-                for s in os.read(self.rfifo, 8192).splitlines():
-                    if s in self.signal_handlers:
-                        for h in self.signal_handlers[s]:
-                            try:
-                                h()
-                            except (KeyboardInterrupt, SystemExit):
-                                return True
-                            except RestartException:
-                                return False
-                            except:
-                                logger.exception('Boo')
+                try:
+                    h(event)
+                except RestartException:
+                    if self.restart_handler:
+                        self.restart_handler()
+                        return
+                except:
+                    logger.exception('Boo')
 
     def _clean_window_data(self, window):
         if window in self.key_handlers:
@@ -604,12 +596,14 @@ class WM(object):
         self.destroy_handlers.clear()
         self.focus_history[:] = []
 
-        self.signal_handlers.clear()
-
         if not is_exit:
             X.XUngrabKey(self.dpy, X.AnyKey, X.AnyModifier, self.root)
             for window in self.get_clients():
                 X.XUngrabKey(self.dpy, X.AnyKey, X.AnyModifier, window)
+
+        for h in self.timer_handlers:
+            h.stop()
+        self.timer_handlers[:] = []
 
         for h in self.deinit_handlers:
             try:
@@ -661,18 +655,6 @@ class WM(object):
     def on_deinit(self, func):
         self.deinit_handlers.append(func)
         return func
-
-    def on_signal(self, signal):
-        def inner(func):
-            self.signal_handlers.setdefault(signal, []).append(func)
-
-            def remove():
-                self.signal_handlers[signal].remove(func)
-
-            func.remove = remove
-            return func
-
-        return inner
 
     def get_screen_saver_info(self):
         result = X.ffi.new('XScreenSaverInfo *')

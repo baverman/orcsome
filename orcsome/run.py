@@ -1,11 +1,12 @@
 import sys
+import signal
 import os.path
 import logging
 import argparse
 
+from . import VERSION, ev
 from .wm import WM
 from .testwm import TestWM
-from . import VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -64,21 +65,28 @@ def run():
         "%(asctime)s %(name)s %(levelname)s: %(message)s"))
     root_logger.addHandler(handler)
 
-    wm = WM()
+    loop = ev.Loop()
+    wm = WM(loop)
 
-    while True:
-        load_config(wm, args.config)
-        wm.init()
+    def stop(l, w, e):
+        wm.stop(True)
+        loop.break_()
 
-        while True:
-            if wm.run():
-                wm.stop(True)
-                sys.exit(0)
-            else:
-                if check_config(args.config):
-                    wm.stop()
-                    logger.info('Restarting...')
-                    break
+    sigint = ev.SignalWatcher(stop, signal.SIGINT)
+    sigint.start(loop)
+
+    def on_restart():
+        if check_config(args.config):
+            wm.stop()
+            logger.info('Restarting...')
+            load_config(wm, args.config)
+            wm.init()
+
+    wm.restart_handler = on_restart
+
+    load_config(wm, args.config)
+    wm.init()
+    loop.run()
 
 if __name__ == '__main__':
     run()

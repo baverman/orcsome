@@ -127,6 +127,10 @@ def restart():
     raise RestartException()
 
 
+def do(callable, *args, **kwargs):
+    callable(*args, **kwargs)
+
+
 class ActionCaller(object):
     def __init__(self, decorator):
         self.decorator = decorator

@@ -325,6 +325,3 @@ def set_window_property(display, window, property, type, fmt, values):
     XChangeProperty(display, window, property, type, fmt, PropModeReplace,
         data, len(values))
 
-
-def create_event():
-    return ffi.new('XEvent *')
