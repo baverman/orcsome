@@ -7,6 +7,7 @@ from select import select
 from . import xlib as X
 from .wrappers import Window
 from .actions import ActionCaller
+from .aliases import KEYS as KEY_ALIASES
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,8 @@ MODIFICATORS = {
   'Shift': X.ShiftMask,
   'Win': X.Mod4Mask,
   'Mod': X.Mod4Mask,
+  'Hyper': X.Mod4Mask,
+  'Super': X.Mod4Mask,
 }
 
 IGNORED_MOD_MASKS = (0, X.LockMask, X.Mod2Mask, X.LockMask | X.Mod2Mask)
@@ -71,47 +74,61 @@ class WM(object):
         os.write(self.wfifo, signal + '\n')
 
     def keycode(self, key):
-        sym = X.XStringToKeysym(key)
+        sym = X.XStringToKeysym(KEY_ALIASES.get(key, key))
         if sym is X.NoSymbol:
-            logger.error('Invalid key [%s]' % key)
             return None
 
         return X.XKeysymToKeycode(self.dpy, sym)
 
-    def bind_key(self, window, keydef):
-        parts = keydef.split('+')
-        mod, key = parts[:-1], parts[-1]
-        modmask = 0
-        for m in mod:
-            try:
-                modmask |= MODIFICATORS[m]
-            except KeyError:
-                logger.error('Invalid key [%s]' % keydef)
-                return ActionCaller(lambda func: func)
+    def parse_keydef(self, keydef):
+        keys = [r.strip() for r in keydef.split()]
+        result = []
+        for k in keys:
+            parts = k.split('+')
+            mod, key = parts[:-1], parts[-1]
+            modmask = 0
+            for m in mod:
+                try:
+                    modmask |= MODIFICATORS[m]
+                except KeyError:
+                    return None
 
-        sym = X.XStringToKeysym(key)
-        if sym is X.NoSymbol:
-            logger.error('Invalid key [%s]' % keydef)
+            code = self.keycode(key)
+            if not code:
+                return None
+
+            result.append((code, modmask))
+
+        return result
+
+    def bind_key(self, window, keydef):
+        code_mmask_list = self.parse_keydef(keydef)
+        if not code_mmask_list:
+            logger.error('Invalid key definition [%s]' % keydef)
             return ActionCaller(lambda func: func)
 
-        code = X.XKeysymToKeycode(self.dpy, sym)
+        if len(code_mmask_list) == 1:
+            code, modmask = code_mmask_list[0]
 
-        def inner(func):
-            keys = []
-            for imask in IGNORED_MOD_MASKS:
-                mask = modmask | imask
-                X.XGrabKey(self.dpy, code, mask, window, True, X.GrabModeAsync, X.GrabModeAsync)
-                self.key_handlers.setdefault(window, {})[(mask, code)] = func
-                keys.append((mask, code))
+            def inner(func):
+                keys = []
+                for imask in IGNORED_MOD_MASKS:
+                    mask = modmask | imask
+                    X.XGrabKey(self.dpy, code, mask, window, True, X.GrabModeAsync, X.GrabModeAsync)
+                    self.key_handlers.setdefault(window, {})[(mask, code)] = func
+                    keys.append((mask, code))
 
-            def remove():
-                for k in keys:
-                    del self.key_handlers[window][k]
+                def remove():
+                    for k in keys:
+                        del self.key_handlers[window][k]
 
-            func.remove = remove
-            return func
+                func.remove = remove
+                return func
 
-        return ActionCaller(inner)
+            return ActionCaller(inner)
+        else:
+            print code_mmask_list
+            return ActionCaller(lambda func: func)
 
     def on_key(self, *args):
         """Signal decorator to define hotkey
@@ -423,7 +440,6 @@ class WM(object):
         }
 
         event = X.create_event()
-
         while True:
             try:
                 readable, _, _ = select([self.fd, self.rfifo], [], [])
@@ -435,17 +451,12 @@ class WM(object):
 
             if self.fd in readable:
                 while True:
-                    try:
-                        i = X.XPending(self.dpy)
-                    except KeyboardInterrupt:
-                        return True
-
-                    if not i:
-                        break
+                    i = X.XPending(self.dpy)
+                    if not i: break
 
                     while i > 0:
                         X.XNextEvent(self.dpy, event)
-                        i = i - 1
+                        i -= 1
 
                         try:
                             h = handlers[event.type]
@@ -473,7 +484,6 @@ class WM(object):
                                 return False
                             except:
                                 logger.exception('Boo')
-
 
     def _clean_window_data(self, window):
         if window in self.key_handlers:
@@ -674,5 +684,6 @@ class WM(object):
 def error_handler(display, error):
     msg = X.ffi.new('char[100]')
     X.XGetErrorText(display, error.error_code, msg, 100)
-    logger.error('{} ({}:{})'.format(X.ffi.string(msg), error.request_code, error.minor_code))
+    logger.error('{} ({}:{})'.format(X.ffi.string(msg),
+        error.request_code, error.minor_code))
     return 0
