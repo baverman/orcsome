@@ -32,12 +32,14 @@ def check_config(config):
     orcsome._wm = wm
 
     env = {}
-
+    sys.path.insert(0, os.path.dirname(config))
     try:
         execfile(config, env)
     except:
         logger.exception('Config file check failed %s' % config)
         return False
+    finally:
+        sys.path.pop(0)
 
     return True
 
