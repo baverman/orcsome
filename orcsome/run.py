@@ -89,6 +89,3 @@ def run():
     load_config(wm, args.config)
     wm.init()
     loop.run()
-
-if __name__ == '__main__':
-    run()
