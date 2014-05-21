@@ -234,6 +234,10 @@ ffi.cdef("""
 
     Status XScreenSaverQueryInfo(Display *dpy, Drawable drawable, XScreenSaverInfo *saver_info);
 
+    Status DPMSInfo (Display *display, unsigned short *power_level, unsigned char *state);
+    Status DPMSEnable (Display *display);
+    Status DPMSDisable (Display *display);
+
     Window DefaultRootWindow(Display *display);
     int ConnectionNumber(Display *display);
 """)
@@ -241,7 +245,8 @@ ffi.cdef("""
 C = ffi.verify("""
 #include <X11/Xlib.h>
 #include <X11/extensions/scrnsaver.h>
-""", libraries=['X11', 'Xss'])
+#include <X11/extensions/dpms.h>
+""", libraries=['X11', 'Xss', 'Xext'])
 
 NULL = ffi.NULL
 globals().update(C.__dict__)

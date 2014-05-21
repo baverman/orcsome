@@ -100,3 +100,6 @@ class Window(int):
 
     def _urgent(self):
         return self.wm.atom['_NET_WM_STATE_DEMANDS_ATTENTION'] in self.state
+
+    def _fullscreen(self):
+        return self.wm.atom['_NET_WM_STATE_FULLSCREEN'] in self.state

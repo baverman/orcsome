@@ -274,17 +274,22 @@ class WM(object):
 
         return ActionCaller(inner)
 
-    def on_timer(self, timeout):
+    def on_timer(self, timeout, start=True):
         def inner(func):
             def cb(l, w, e):
                 if func():
                     timer.stop(self.loop)
 
             self.timer_handlers.append(func)
+
             timer = ev.TimerWatcher(cb, timeout, timeout)
             func.start = lambda: timer.start(self.loop)
             func.stop = lambda: timer.stop(self.loop)
             func.again = lambda: timer.again(self.loop)
+
+            if start:
+                func.start()
+
             return func
 
         return ActionCaller(inner)
@@ -660,6 +665,14 @@ class WM(object):
         result = X.ffi.new('XScreenSaverInfo *')
         X.XScreenSaverQueryInfo(self.dpy, self.root, result)
         return result
+
+    def reset_dpms(self):
+        power = X.ffi.new('unsigned short *')
+        state = X.ffi.new('unsigned char *')
+        if X.DPMSInfo(self.dpy, power, state):
+            if state[0]:
+                X.DPMSDisable(self.dpy)
+                X.DPMSEnable(self.dpy)
 
 
 @X.ffi.callback('XErrorHandler')

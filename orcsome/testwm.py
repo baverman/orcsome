@@ -8,6 +8,9 @@ class TestWM(object):
         assert isinstance(key, basestring), 'First argument to on_key must be string'
         return ActionCaller(idfunc)
 
+    def on_timer(self, period, start=True):
+        return ActionCaller(idfunc)
+
     def on_create(self, *args, **matchers):
         assert matchers or args
 
