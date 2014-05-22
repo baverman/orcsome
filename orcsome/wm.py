@@ -274,7 +274,7 @@ class WM(object):
 
         return ActionCaller(inner)
 
-    def on_timer(self, timeout, start=True):
+    def on_timer(self, timeout, start=True, first_timeout=None):
         def inner(func):
             def cb(l, w, e):
                 if func():
@@ -282,10 +282,11 @@ class WM(object):
 
             self.timer_handlers.append(func)
 
-            timer = ev.TimerWatcher(cb, timeout, timeout)
-            func.start = lambda: timer.start(self.loop)
+            timer = ev.TimerWatcher(cb, first_timeout or timeout, timeout)
+            func.start = lambda after=None, repeat=None: timer.start(self.loop, after, repeat)
             func.stop = lambda: timer.stop(self.loop)
             func.again = lambda: timer.again(self.loop)
+            func.remaining = lambda: timer.remaining(self.loop)
 
             if start:
                 func.start()

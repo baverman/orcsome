@@ -32,9 +32,11 @@ typedef double ev_tstamp;
 typedef struct { ...; } ev_timer;
 typedef void (*timer_cb) (struct ev_loop*, ev_timer*, int);
 void ev_timer_init(ev_timer*, timer_cb, ev_tstamp, ev_tstamp);
+void ev_timer_set(ev_timer*, ev_tstamp, ev_tstamp);
 void ev_timer_start(struct ev_loop*, ev_timer*);
 void ev_timer_again(struct ev_loop*, ev_timer*);
 void ev_timer_stop(struct ev_loop*, ev_timer*);
+ev_tstamp ev_timer_remaining(struct ev_loop*, ev_timer*);
 """)
 
 C = ffi.verify("""
@@ -87,11 +89,18 @@ class SignalWatcher(object):
 
 class TimerWatcher(object):
     def __init__(self, cb, after, repeat=0.0):
+        self._after = after
+        self._repeat = repeat
         self._watcher = ffi.new('ev_timer*')
         self._cb = ffi.callback('timer_cb', cb)
         ev_timer_init(self._watcher, self._cb, after, repeat)
 
-    def start(self, loop):
+    def start(self, loop, after=None, repeat=None):
+        if after or repeat:
+            self._after = after or self._after
+            self._repeat = repeat or self._repeat
+            ev_timer_set(self._watcher, self._after, self._repeat)
+
         ev_timer_start(loop._loop, self._watcher)
 
     def stop(self, loop):
@@ -99,3 +108,6 @@ class TimerWatcher(object):
 
     def again(self, loop):
         ev_timer_again(loop._loop, self._watcher)
+
+    def remaining(self, loop):
+        return ev_timer_remaining(loop._loop, self._watcher)
