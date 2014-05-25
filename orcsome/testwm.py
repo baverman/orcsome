@@ -1,4 +1,4 @@
-from .actions import ActionCaller
+from .utils import ActionCaller
 
 idfunc = lambda func: func
 
@@ -6,10 +6,10 @@ idfunc = lambda func: func
 class TestWM(object):
     def on_key(self, key):
         assert isinstance(key, basestring), 'First argument to on_key must be string'
-        return ActionCaller(idfunc)
+        return ActionCaller(self, idfunc)
 
     def on_timer(self, period, start=True):
-        return ActionCaller(idfunc)
+        return ActionCaller(self, idfunc)
 
     def on_create(self, *args, **matchers):
         assert matchers or args
@@ -23,7 +23,7 @@ class TestWM(object):
             assert possible_args.union(matchers) == possible_args, \
                 'Invalid matcher, must be one of %s' % possible_args
 
-        return ActionCaller(idfunc)
+        return ActionCaller(self, idfunc)
 
     def on_manage(self, *args, **matchers):
         assert matchers or args
@@ -37,14 +37,14 @@ class TestWM(object):
             assert possible_args.union(matchers) == possible_args, \
                 'Invalid matcher, must be one of %s' % possible_args
 
-        return ActionCaller(idfunc)
+        return ActionCaller(self, idfunc)
 
     def on_property_change(self, *args):
         assert all(isinstance(r, basestring) for r in args)
-        return ActionCaller(idfunc)
+        return ActionCaller(self, idfunc)
 
     def on_destroy(self, window):
-        return ActionCaller(idfunc)
+        return ActionCaller(self, idfunc)
 
     def on_init(self, func):
         return func

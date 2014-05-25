@@ -1,11 +1,10 @@
 import os
 import logging
 
-from . import xlib as X
-from . import ev
+from . import xlib as X, ev
 from .wrappers import Window
-from .actions import ActionCaller
 from .aliases import KEYS as KEY_ALIASES
+from .utils import Mixable, ActionCaller
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ IGNORED_MOD_MASKS = (0, X.LockMask, X.Mod2Mask, X.LockMask | X.Mod2Mask)
 class RestartException(Exception): pass
 
 
-class WM(object):
+class WM(Mixable):
     """Core orcsome instance
 
     Can be get in any time as::
@@ -115,7 +114,7 @@ class WM(object):
         code_mmask_list = self.parse_keydef(keydef)
         if not code_mmask_list:
             logger.error('Invalid key definition [%s]' % keydef)
-            return ActionCaller(lambda func: func)
+            return ActionCaller(self, lambda func: func)
 
         if len(code_mmask_list) == 1:
             code, modmask = code_mmask_list[0]
@@ -135,9 +134,9 @@ class WM(object):
                 func.remove = remove
                 return func
 
-            return ActionCaller(inner)
+            return ActionCaller(self, inner)
         else:
-            return ActionCaller(lambda func: func)
+            return ActionCaller(self, lambda func: func)
 
     def on_key(self, *args):
         """Signal decorator to define hotkey
@@ -210,7 +209,7 @@ class WM(object):
         if args:
             return inner(args[0])
         else:
-            return ActionCaller(inner)
+            return ActionCaller(self, inner)
 
     def on_create(self, *args, **matchers):
         return self._on_create_manage(True, *args, **matchers)
@@ -225,7 +224,7 @@ class WM(object):
             self.destroy_handlers.setdefault(window, []).append(func)
             return func
 
-        return ActionCaller(inner)
+        return ActionCaller(self, inner)
 
     def on_property_change(self, *args):
         """Signal decorator to handle window property change
@@ -272,7 +271,7 @@ class WM(object):
             func.remove = remove
             return func
 
-        return ActionCaller(inner)
+        return ActionCaller(self, inner)
 
     def on_timer(self, timeout, start=True, first_timeout=None):
         def inner(func):
@@ -293,7 +292,7 @@ class WM(object):
 
             return func
 
-        return ActionCaller(inner)
+        return ActionCaller(self, inner)
 
     def get_clients(self, ids=False):
         """Return wm client list"""
@@ -526,25 +525,6 @@ class WM(object):
             X.ffi.new('XWindowChanges *', {'stack_mode': X.Below}))
         self._flush()
 
-    def activate_window_desktop(self, window):
-        """Activate window desktop
-
-        Return:
-
-        * True if window is placed on different from current desktop
-        * False if window desktop is the same
-        * None if window does not have desktop property
-        """
-        wd = window.desktop
-        if wd is not None:
-            if self.current_desktop != wd:
-                self.activate_desktop(wd)
-                return True
-            else:
-                return False
-        else:
-            return None
-
     def set_window_state(self, window, taskbar=None, pager=None,
             decorate=None, otaskbar=None, vmax=None, hmax=None):
         """Set window state"""
@@ -586,14 +566,6 @@ class WM(object):
 
         self._send_event(window, self.atom['_NET_WM_DESKTOP'], [desktop])
         self._flush()
-
-    # def set_window_desktop(self, window, desktop):
-    #     if desktop < 0:
-    #         desktop = 0xffffffff
-
-    #     X.set_window_property(self.dpy, window, self.atom['_NET_WM_DESKTOP'],
-    #         self.atom['CARDINAL'], 32, [desktop])
-    #     self._flush()
 
     def stop(self, is_exit=False):
         self.key_handlers.clear()

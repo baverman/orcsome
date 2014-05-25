@@ -6,6 +6,7 @@ import argparse
 
 from . import VERSION, ev
 from .wm import WM
+from .actions import Actions
 from .testwm import TestWM
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ def run():
 
     loop = ev.Loop()
     wm = WM(loop)
+    wm.mix(Actions)
 
     def stop(l, w, e):
         wm.stop(True)
