@@ -554,8 +554,10 @@ class WM(Mixable):
 
         self._flush()
 
-    def close_window(self, window):
+    def close_window(self, window=None):
         """Send request to wm to close window"""
+        window = window or self.current_window
+        if not window: return
         self._send_event(window, self.atom['_NET_CLOSE_WINDOW'], [X.CurrentTime])
         self._flush()
 
