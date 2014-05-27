@@ -1,9 +1,9 @@
-from .utils import ActionCaller
+from .utils import ActionCaller, Mixable
 
 idfunc = lambda func: func
 
 
-class TestWM(object):
+class TestWM(Mixable):
     def on_key(self, key):
         assert isinstance(key, basestring), 'First argument to on_key must be string'
         return ActionCaller(self, idfunc)
@@ -51,3 +51,6 @@ class TestWM(object):
 
     def on_deinit(self, func):
         return func
+
+    def close_window(self, window=None):
+        pass

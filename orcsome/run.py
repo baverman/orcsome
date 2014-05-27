@@ -29,6 +29,8 @@ def load_config(wm, config):
 
 def check_config(config):
     wm = TestWM()
+    wm.mix(Actions)
+
     import orcsome
     orcsome._wm = wm
 
