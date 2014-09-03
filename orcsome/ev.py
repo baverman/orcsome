@@ -1,3 +1,4 @@
+from time import time
 from cffi import FFI
 
 ffi = FFI()
@@ -100,13 +101,21 @@ class TimerWatcher(object):
             self._repeat = repeat or self._repeat
             ev_timer_set(self._watcher, self._after, self._repeat)
 
+        self.next_stop = time() + self._after
         ev_timer_start(loop._loop, self._watcher)
 
     def stop(self, loop):
         ev_timer_stop(loop._loop, self._watcher)
 
     def again(self, loop):
+        self.next_stop = time() + self._repeat
         ev_timer_again(loop._loop, self._watcher)
 
     def remaining(self, loop):
         return ev_timer_remaining(loop._loop, self._watcher)
+
+    def update_next_stop(self):
+        self.next_stop = time() + self._repeat
+
+    def overdue(self, timeout):
+        return time() > self.next_stop + timeout
