@@ -273,7 +273,7 @@ class WM(Mixable):
 
         return ActionCaller(self, inner)
 
-    def on_timer(self, timeout, start=True, first_timeout=None, overdue=None):
+    def on_timer(self, timeout, start=True, first_timeout=None):
         def inner(func):
             def cb(l, w, e):
                 if func():
@@ -288,7 +288,7 @@ class WM(Mixable):
             func.stop = lambda: timer.stop(self.loop)
             func.again = lambda: timer.again(self.loop)
             func.remaining = lambda: timer.remaining(self.loop)
-            func.overdue = lambda: overdue and timer.overdue(overdue)
+            func.overdue = lambda timeout: timer.overdue(overdue)
 
             if start:
                 func.start()
