@@ -288,7 +288,7 @@ class WM(Mixable):
             func.stop = lambda: timer.stop(self.loop)
             func.again = lambda: timer.again(self.loop)
             func.remaining = lambda: timer.remaining(self.loop)
-            func.overdue = lambda timeout: timer.overdue(overdue)
+            func.overdue = lambda timeout: timer.overdue(timeout)
 
             if start:
                 func.start()
