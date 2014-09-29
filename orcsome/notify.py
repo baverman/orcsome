@@ -11,7 +11,7 @@ def notify(summary, body, timeout=-1, urgency=1, appname=None):
 
 class Notification(object):
     def __init__(self, summary, body, timeout, urgency, appname):
-        self.summary = summary
+        self.summary = summary.lstrip('-')
         self.body = body
         self.timeout = timeout
         self.urgency = urgency
@@ -26,7 +26,7 @@ class Notification(object):
         if self.urgency != 1:
             urgency = "{'urgency': <byte %d>}" % self.urgency
 
-        cmd = [
+        self.lastcmd = cmd = [
             'gdbus',
             'call',
             '--session',
