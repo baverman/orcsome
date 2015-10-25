@@ -653,6 +653,17 @@ class WM(Mixable):
                 X.DPMSEnable(self.dpy)
 
 
+class ImmediateWM(WM):
+    def __init__(self):
+        self.dpy = X.XOpenDisplay(X.NULL)
+        if self.dpy == X.NULL:
+            raise Exception("Can't open display")
+
+        self.root = X.DefaultRootWindow(self.dpy)
+        self.atom = X.AtomCache(self.dpy)
+        self.undecorated_atom_name = '_OB_WM_STATE_UNDECORATED'
+
+
 @X.ffi.callback('XErrorHandler')
 def error_handler(display, error):
     msg = X.ffi.new('char[100]')

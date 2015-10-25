@@ -1,10 +1,10 @@
-from . utils import lazy_attr, match_string
+from . utils import cached_property, match_string
 from . import xlib as X
 
-class Window(int):
-    __getattr__ = lazy_attr
 
-    def _desktop(self):
+class Window(int):
+    @cached_property
+    def desktop(self):
         """Return window desktop.
 
         Result is:
@@ -22,7 +22,8 @@ class Window(int):
             else:
                 return d
 
-    def _role(self):
+    @cached_property
+    def role(self):
         """Return WM_WINDOW_ROLE property"""
         return self.get_property('WM_WINDOW_ROLE', 'STRING')
 
@@ -34,15 +35,20 @@ class Window(int):
 
         return result
 
-    def _cls(self):
+    @cached_property
+    def cls(self):
+        """Return second part from WM_CLASS property"""
         self.name, cls = self.get_name_and_class()
         return cls
 
-    def _name(self):
+    @cached_property
+    def name(self):
+        """Return first part from WM_CLASS property"""
         name, self.cls = self.get_name_and_class()
         return name
 
-    def _title(self):
+    @cached_property
+    def title(self):
         """Return _NET_WM_NAME property"""
         return self.get_property('_NET_WM_NAME', 'UTF8_STRING')
 
@@ -80,7 +86,8 @@ class Window(int):
 
         return True
 
-    def _state(self):
+    @cached_property
+    def state(self):
         """Return _NET_WM_STATE"""
         return self.get_property('_NET_WM_STATE', 'ATOM') or []
 
@@ -89,17 +96,22 @@ class Window(int):
         return X.get_window_property(self.wm.dpy, self, atom[property],
             atom[type] if type else 0, **kwargs)
 
-    def _maximized_vert(self):
+    @cached_property
+    def maximized_vert(self):
         return self.wm.atom['_NET_WM_STATE_MAXIMIZED_VERT'] in self.state
 
-    def _maximized_horz(self):
+    @cached_property
+    def maximized_horz(self):
         return self.wm.atom['_NET_WM_STATE_MAXIMIZED_HORZ'] in self.state
 
-    def _decorated(self):
-        return self.wm.atom[self.undecorated_atom_name] not in self.state
+    @cached_property
+    def decorated(self):
+        return self.wm.atom[self.wm.undecorated_atom_name] not in self.state
 
-    def _urgent(self):
+    @cached_property
+    def urgent(self):
         return self.wm.atom['_NET_WM_STATE_DEMANDS_ATTENTION'] in self.state
 
-    def _fullscreen(self):
+    @cached_property
+    def fullscreen(self):
         return self.wm.atom['_NET_WM_STATE_FULLSCREEN'] in self.state

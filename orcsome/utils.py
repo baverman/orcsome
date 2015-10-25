@@ -2,10 +2,18 @@ import os
 import re
 
 
-def lazy_attr(self, name):
-    value = object.__getattribute__(self, '_' + name)()
-    setattr(self, name, value)
-    return value
+class cached_property(object):
+    def __init__(self, func):
+        self.func = func
+        self.__name__ = func.__name__
+        self.__doc__ = func.__doc__
+
+    def __get__(self, obj, cls):
+        if obj is None:
+            return self
+        val = self.func(obj)
+        obj.__dict__[self.__name__] = val
+        return val
 
 
 re_cache = {}
