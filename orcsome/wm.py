@@ -590,6 +590,16 @@ class WM(Mixable):
         """Get size of screen (root window)"""
         return self.get_window_geometry(self.root)[2:]
 
+    def get_workarea(self, desktop=None):
+        """Get workarea geometery
+
+        :param desktop: Desktop for working area receiving. If None then current_desktop is using"""
+        result = X.get_window_property(self.dpy, self.root,
+                                       self.atom['_NET_WORKAREA'], self.atom['CARDINAL'])
+        if desktop is None:
+            desktop = self.current_desktop
+        return result[4*desktop:4*desktop+4]
+
     def moveresize_window(self, window, x=None, y=None, w=None, h=None):
         """Change window geometry"""
         flags = 0
@@ -602,7 +612,9 @@ class WM(Mixable):
             flags |= 1 << 10
         if h is not None:
             flags |= 1 << 11
-        params = flags, x, y, max(1, w), max(1, h)
+        # Workarea offsets
+        o_x, o_y, _, _ = tuple(self.get_workarea())
+        params = flags, x+o_x, y+o_y, max(1, w), max(1, h)
         self._send_event(window, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
 
 
