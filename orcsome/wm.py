@@ -528,6 +528,20 @@ class WM(Mixable):
             X.ffi.new('XWindowChanges *', {'stack_mode': X.Below}))
         self._flush()
 
+    def _change_window_hidden_state(self, window, p):
+        """Minize window"""
+        params = p, self.atom['_NET_WM_STATE_HIDDEN']
+        self._send_event(window, self.atom['_NET_WM_STATE'], list(params))
+        self._flush()
+
+    def minimize_window(self, window):
+        """Minize window"""
+        self._change_window_hidden_state(window, 1)
+
+    def restore_window(self, window):
+        """Restore window"""
+        self._change_window_hidden_state(window, 0)
+
     def set_window_state(self, window, taskbar=None, pager=None,
             decorate=None, otaskbar=None, vmax=None, hmax=None):
         """Set window state"""
@@ -556,6 +570,41 @@ class WM(Mixable):
             self._send_event(window, state_atom, list(params))
 
         self._flush()
+
+
+    def get_window_geometry(self, window):
+        """Get window geometry
+
+        Returns window geometry without decorations"""
+        root_ret = X.ffi.new('Window *')
+        x = X.ffi.new('int *')
+        y = X.ffi.new('int *')
+        w = X.ffi.new('unsigned int *')
+        h = X.ffi.new('unsigned int *')
+        border_width = X.ffi.new('unsigned int *')
+        depth = X.ffi.new('unsigned int *')
+        X.XGetGeometry(self.dpy, window, root_ret, x, y, w, h, border_width, depth)
+        return x[0], y[0], w[0], h[0]
+
+    def get_screen_size(self):
+        """Get size of screen (root window)"""
+        return self.get_window_geometry(self.root)[2:]
+
+    def moveresize_window(self, window, x=None, y=None, w=None, h=None):
+        """Change window geometry"""
+        flags = 0
+        flags |= 2 << 12
+        if x is not None:
+            flags |= 1 << 8
+        if y is not None:
+            flags |= 1 << 9
+        if w is not None:
+            flags |= 1 << 10
+        if h is not None:
+            flags |= 1 << 11
+        params = flags, x, y, max(1, w), max(1, h)
+        self._send_event(window, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
+
 
     def close_window(self, window=None):
         """Send request to wm to close window"""

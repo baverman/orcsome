@@ -232,6 +232,10 @@ ffi.cdef("""
     int XConfigureWindow(Display *display, Window w, unsigned int value_mask,
         XWindowChanges *changes);
 
+    Status XGetGeometry(Display *display, Drawable d, Window *root_return,
+        int *x_return, int *y_return, unsigned int *width_return,
+        unsigned int *height_return, unsigned int *border_width_return, unsigned int *depth_return);
+
     Status XScreenSaverQueryInfo(Display *dpy, Drawable drawable, XScreenSaverInfo *saver_info);
 
     Status DPMSInfo (Display *display, unsigned short *power_level, unsigned char *state);
