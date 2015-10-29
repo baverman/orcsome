@@ -57,10 +57,15 @@ class Actions(object):
         """
         client = self.find_client(self.get_clients(), **matchers)
         if client:
-            if bring_to_current:
-                self.change_window_desktop(client, self.current_desktop)
+            if bring_to_current and self.current_desktop != client.desktop:
+                @self.on_property_change(client, '_NET_WM_DESKTOP')
+                def focus_and_raise_cb():
+                    focus_and_raise_cb.remove()
+                    self.focus_and_raise(self.event_window)
 
-            self.focus_and_raise(client)
+                self.change_window_desktop(client, self.current_desktop)
+            else:
+                self.focus_and_raise(client)
         else:
             if on_create:
                 if not self.create_spawn_hook in self.create_handlers:
