@@ -572,10 +572,24 @@ class WM(Mixable):
         self._flush()
 
 
+    def _get_parent(self, window):
+        root_ret = X.ffi.new("Window *")
+        parent = X.ffi.new("Window *")
+        children = X.ffi.new("Window **")
+        nchildren = X.ffi.new("unsigned int *")
+        X.XQueryTree(self.dpy, window, root_ret, parent, children, nchildren)
+        return parent[0]
+
     def get_window_geometry(self, window):
         """Get window geometry
 
-        Returns window geometry without decorations"""
+        Returns window geometry"""
+        top_win = window
+        parent = self._get_parent(top_win)
+        while parent != self.root:
+            top_win = parent
+            parent = self._get_parent(top_win)
+
         root_ret = X.ffi.new('Window *')
         x = X.ffi.new('int *')
         y = X.ffi.new('int *')
@@ -583,7 +597,7 @@ class WM(Mixable):
         h = X.ffi.new('unsigned int *')
         border_width = X.ffi.new('unsigned int *')
         depth = X.ffi.new('unsigned int *')
-        X.XGetGeometry(self.dpy, window, root_ret, x, y, w, h, border_width, depth)
+        X.XGetGeometry(self.dpy, top_win, root_ret, x, y, w, h, border_width, depth)
         return x[0], y[0], w[0], h[0]
 
     def get_screen_size(self):
@@ -602,6 +616,12 @@ class WM(Mixable):
 
     def moveresize_window(self, window, x=None, y=None, w=None, h=None):
         """Change window geometry"""
+        top_win = window
+        parent = self._get_parent(top_win)
+        while parent != self.root:
+            top_win = parent
+            parent = self._get_parent(top_win)
+
         flags = 0
         flags |= 2 << 12
         if x is not None:
@@ -615,7 +635,7 @@ class WM(Mixable):
         # Workarea offsets
         o_x, o_y, _, _ = tuple(self.get_workarea())
         params = flags, x+o_x, y+o_y, max(1, w), max(1, h)
-        self._send_event(window, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
+        self._send_event(top_win, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
 
 
     def close_window(self, window=None):
