@@ -1,23 +1,4 @@
 #!/usr/bin/env python2
-import sys
 
 from orcsome.run import run
-
-if sys.platform == 'linux2':
-    import ctypes
-    pname = 'orcsome'
-
-    argv = ctypes.POINTER(ctypes.c_char_p)()
-    argc = ctypes.c_int()
-    ctypes.pythonapi.Py_GetArgcArgv(ctypes.byref(argc), ctypes.byref(argv))
-
-    ename = argv[0]
-    ctypes.memset(argv.contents, 0, len(ename))
-    ctypes.memmove(argv.contents, pname, min(len(ename), len(pname)))
-
-    libc = ctypes.cdll.LoadLibrary('libc.so.6')
-    buf = ctypes.create_string_buffer(len(pname)+1)
-    buf.value = pname
-    libc.prctl(15, ctypes.byref(buf), 0, 0, 0)
-
 run()
