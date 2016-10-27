@@ -40,7 +40,8 @@ class WM(Mixable):
             X.KeyRelease: self.handle_keyrelease,
             X.CreateNotify: self.handle_create,
             X.DestroyNotify: self.handle_destroy,
-            X.FocusIn: self.handle_focusin,
+            X.FocusIn: self.handle_focus,
+            X.FocusOut: self.handle_focus,
             X.PropertyNotify: self.handle_property,
         }
         self._event = X.ffi.new('XEvent *')
@@ -67,6 +68,7 @@ class WM(Mixable):
         self.atom = X.AtomCache(self.dpy)
 
         self.undecorated_atom_name = '_OB_WM_STATE_UNDECORATED'
+        self.track_kbd_layout = False
 
         self.loop = loop
         self.xevent_watcher = ev.IOWatcher(self._xevent_cb, self.fd, ev.EV_READ)
@@ -378,7 +380,7 @@ class WM(Mixable):
 
     def process_create_window(self, window):
         X.XSelectInput(self.dpy, window, X.StructureNotifyMask |
-            X.PropertyChangeMask | X.FocusChangeMask)
+                       X.PropertyChangeMask | X.FocusChangeMask)
 
         self.event_window = window
         for handler in self.create_handlers:
@@ -452,14 +454,23 @@ class WM(Mixable):
                 for h in wphandlers[None]:
                     h()
 
-    def handle_focusin(self, event):
+    def handle_focus(self, event):
         event = event.xfocus
-        try:
-            self.focus_history.remove(event.window)
-        except ValueError:
-            pass
+        if event.type == X.FocusIn:
+            try:
+                self.focus_history.remove(event.window)
+            except ValueError:
+                pass
 
-        self.focus_history.append(event.window)
+            self.focus_history.append(event.window)
+            if self.track_kbd_layout:
+                prop = X.get_window_property(self.dpy, event.window, self.atom['_ORCSOME_KBD_GROUP'])
+                if prop:
+                    X.set_kbd_group(self.dpy, prop[0])
+        else:
+            if self.track_kbd_layout:
+                X.set_window_property(self.dpy, event.window, self.atom['_ORCSOME_KBD_GROUP'],
+                                      self.atom['CARDINAL'], 32, [X.get_kbd_group(self.dpy)])
 
     def _xevent_cb(self, loop, watcher, events):
         event = self._event
@@ -616,7 +627,6 @@ class WM(Mixable):
         o_x, o_y, _, _ = tuple(self.get_workarea())
         params = flags, x+o_x, y+o_y, max(1, w), max(1, h)
         self._send_event(window, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
-
 
     def close_window(self, window=None):
         """Send request to wm to close window"""

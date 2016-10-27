@@ -17,6 +17,7 @@ ffi.cdef("""
     static const int CreateNotify;
     static const int DestroyNotify;
     static const int FocusIn;
+    static const int FocusOut;
     static const int PropertyNotify;
     static const int ClientMessage;
 
@@ -50,6 +51,8 @@ ffi.cdef("""
     static const int PropModeReplace;
     static const int PropModePrepend;
     static const int PropModeAppend;
+
+    static const int XkbUseCoreKbd;
 
 
     typedef int Bool;
@@ -244,12 +247,35 @@ ffi.cdef("""
 
     Window DefaultRootWindow(Display *display);
     int ConnectionNumber(Display *display);
+
+    typedef struct {
+            unsigned char	group;
+            unsigned char   locked_group;
+            unsigned short	base_group;
+            unsigned short	latched_group;
+            unsigned char	mods;
+            unsigned char	base_mods;
+            unsigned char	latched_mods;
+            unsigned char	locked_mods;
+            unsigned char	compat_state;
+            unsigned char	grab_mods;
+            unsigned char	compat_grab_mods;
+            unsigned char	lookup_mods;
+            unsigned char	compat_lookup_mods;
+            unsigned short	ptr_buttons;
+    } XkbStateRec;
+
+    Status XkbGetState (Display *display, unsigned int device_spec, XkbStateRec *state_return);
+    Bool XkbLockGroup (Display *display, unsigned int device_spec, unsigned int group);
 """)
 
 C = ffi.verify("""
 #include <X11/Xlib.h>
+#include <X11/XKBlib.h>
 #include <X11/extensions/scrnsaver.h>
 #include <X11/extensions/dpms.h>
+#include <X11/extensions/XKB.h>
+#include <X11/extensions/XKBstr.h>
 """, libraries=['X11', 'Xss', 'Xext'])
 
 NULL = ffi.NULL
@@ -334,3 +360,13 @@ def set_window_property(display, window, property, type, fmt, values):
     XChangeProperty(display, window, property, type, fmt, PropModeReplace,
         data, len(values))
 
+
+def get_kbd_group(display):
+    state = ffi.new('XkbStateRec *')
+    XkbGetState(display, XkbUseCoreKbd, state)
+    return state[0].group
+
+
+def set_kbd_group(display, group):
+    XkbLockGroup(display, XkbUseCoreKbd, group)
+    XFlush(display)
