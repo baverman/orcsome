@@ -463,14 +463,14 @@ class WM(Mixable):
                 pass
 
             self.focus_history.append(event.window)
-            if event.mode == 3 and self.track_kbd_layout:
+            if event.mode in (0, 3) and self.track_kbd_layout:
                 prop = X.get_window_property(self.dpy, event.window, self.atom['_ORCSOME_KBD_GROUP'])
                 if prop:
                     X.set_kbd_group(self.dpy, prop[0])
                 else:
                     X.set_kbd_group(self.dpy, 0)
         else:
-            if event.mode == 3 and self.track_kbd_layout:
+            if event.mode in (0, 3) and self.track_kbd_layout:
                 X.set_window_property(self.dpy, event.window, self.atom['_ORCSOME_KBD_GROUP'],
                                       self.atom['CARDINAL'], 32, [X.get_kbd_group(self.dpy)])
 
