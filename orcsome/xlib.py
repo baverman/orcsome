@@ -238,6 +238,8 @@ ffi.cdef("""
     Status XGetGeometry(Display *display, Drawable d, Window *root_return,
         int *x_return, int *y_return, unsigned int *width_return,
         unsigned int *height_return, unsigned int *border_width_return, unsigned int *depth_return);
+    Status XQueryTree(Display *display, Window w, Window *root_return, Window *parent_return,
+        Window **children_return, unsigned int *nchildren_return);
 
     Status XScreenSaverQueryInfo(Display *dpy, Drawable drawable, XScreenSaverInfo *saver_info);
 
