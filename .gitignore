@@ -6,6 +6,7 @@ __pycache__
 /build
 /dist
 /*.egg-info
+/.eggs
 /docs/_build
 /aur
 
