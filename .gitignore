@@ -1,5 +1,7 @@
 *.pyc
 *.so
+*.c
+*.o
 __pycache__
 /build
 /dist

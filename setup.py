@@ -1,7 +1,6 @@
 from setuptools import setup, find_packages
 
 import orcsome
-import orcsome.xlib
 
 setup(
     name     = 'orcsome',
@@ -10,14 +9,14 @@ setup(
     author_email = 'bobrov@vl.ru',
     description = 'Scripting extension for NETWM compliant window managers',
     long_description = open('README.rst').read(),
-    zip_safe   = False,
+    zip_safe = False,
     packages = find_packages(exclude=('tests', )),
-    ext_modules=[orcsome.xlib.ffi.verifier.get_extension()],
-    download_url = 'https://github.com/baverman/orcsome/archive/{}.zip'.format(orcsome.VERSION),
-    install_requires = ['cffi'],
+    cffi_modules=["orcsome/ev_build.py:ffi", "orcsome/xlib_build.py:ffi"],
+    setup_requires=["cffi>=1.0.0"],
+    install_requires = ['cffi>=1.0.0'],
     include_package_data = True,
     scripts = ['bin/orcsome'],
-    url = 'http://github.com/baverman/orcsome',
+    url = 'https://github.com/baverman/orcsome',
     classifiers = [
         "Programming Language :: Python",
         "Programming Language :: Python :: 2.7",

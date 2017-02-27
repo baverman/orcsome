@@ -1,4 +1,4 @@
-VERSION = '0.6dev'
+VERSION = '0.6dev0'
 
 _wm = None
 
