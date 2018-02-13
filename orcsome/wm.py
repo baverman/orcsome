@@ -402,6 +402,7 @@ class WM(Mixable):
 
     def handle_keypress(self, event):
         event = event.xkey
+        logger.debug('Keypress {} {}'.format(event.state, event.keycode))
         if self.grab_keyboard_handler:
             self.grab_keyboard_handler(True, event.state, event.keycode)
         else:
@@ -629,6 +630,23 @@ class WM(Mixable):
         o_x, o_y, _, _ = tuple(self.get_workarea())
         params = flags, x+o_x, y+o_y, max(1, w), max(1, h)
         self._send_event(window, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
+        self._flush()
+
+    def moveresize_window2(self, window, left, top, right, bottom):
+        """Change window geometry"""
+        flags = 0
+        flags |= 2 << 12
+        flags |= 1 << 8
+        flags |= 1 << 9
+        flags |= 1 << 10
+        flags |= 1 << 11
+        # Workarea offsets
+        dl, dt, dw, dh = tuple(self.get_workarea(window.desktop))
+        params = flags, left + dl, top + dt, max(1, dw - right), max(1, dh - bottom)
+        print dl, dt, dw, dh
+        print params
+        self._send_event(window, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
+        self._flush()
 
     def close_window(self, window=None):
         """Send request to wm to close window"""
@@ -671,6 +689,7 @@ class WM(Mixable):
         self.deinit_handlers[:] = []
 
     def grab_keyboard(self, func):
+        logger.debug('Grab a keyboard with %r', func)
         if self.grab_keyboard_handler:
             return False
 
@@ -684,6 +703,7 @@ class WM(Mixable):
         return False
 
     def ungrab_keyboard(self):
+        logger.debug('Ungrab a keyboard with %r', self.grab_keyboard_handler)
         self.grab_keyboard_handler = None
         return X.XUngrabKeyboard(self.dpy, X.CurrentTime)
 

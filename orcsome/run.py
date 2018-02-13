@@ -51,6 +51,8 @@ def run():
     parser = argparse.ArgumentParser(version='%prog ' + VERSION)
     parser.add_argument('-l', '--log', dest='log', metavar='FILE',
         help='Path to log file (log to stdout by default)')
+    parser.add_argument('--log-level', metavar='LOGLEVEL', default='INFO',
+        help='log level, default is INFO')
 
     config_dir = os.getenv('XDG_CONFIG_HOME', os.path.expanduser('~/.config'))
     default_rcfile = os.path.join(config_dir, 'orcsome', 'rc.py')
@@ -65,7 +67,7 @@ def run():
         handler = logging.StreamHandler()
 
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(args.log_level)
     handler.setFormatter(logging.Formatter(
         "%(asctime)s %(name)s %(levelname)s: %(message)s"))
     root_logger.addHandler(handler)
