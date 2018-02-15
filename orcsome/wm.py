@@ -634,17 +634,10 @@ class WM(Mixable):
 
     def moveresize_window2(self, window, left, top, right, bottom):
         """Change window geometry"""
-        flags = 0
-        flags |= 2 << 12
-        flags |= 1 << 8
-        flags |= 1 << 9
-        flags |= 1 << 10
-        flags |= 1 << 11
+        flags = 0x2f00
         # Workarea offsets
         dl, dt, dw, dh = tuple(self.get_workarea(window.desktop))
         params = flags, left + dl, top + dt, max(1, dw - right), max(1, dh - bottom)
-        print dl, dt, dw, dh
-        print params
         self._send_event(window, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
         self._flush()
 
