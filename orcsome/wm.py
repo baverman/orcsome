@@ -314,8 +314,9 @@ class WM(Mixable):
 
         Most top window will be last in list. Can be useful to determine window visibility.
         """
-        return X.get_window_property(self.dpy, self.root,
+        result = X.get_window_property(self.dpy, self.root,
             self.atom['_NET_CLIENT_LIST_STACKING'], self.atom['WINDOW']) or []
+        return [self.window(r) for r in result]
 
     @property
     def current_window(self):
