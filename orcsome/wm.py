@@ -637,7 +637,7 @@ class WM(Mixable):
         flags = 0x2f00
         # Workarea offsets
         dl, dt, dw, dh = tuple(self.get_workarea(window.desktop))
-        params = flags, left + dl, top + dt, max(1, dw - right), max(1, dh - bottom)
+        params = flags, left + dl, top + dt, max(1, dw - right - left), max(1, dh - bottom - top)
         self._send_event(window, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
         self._flush()
 
