@@ -1,10 +1,11 @@
 from array import array
 from ._xlib import ffi, lib
+from .utils import bstr, btype
 
 NULL = ffi.NULL
 globals().update(lib.__dict__)
 
-NONE = 0L
+NONE = 0
 
 
 class AtomCache(object):
@@ -18,7 +19,7 @@ class AtomCache(object):
         except KeyError:
             pass
 
-        atom = self._cache[name] = XInternAtom(self.dpy, name, False)
+        atom = self._cache[name] = XInternAtom(self.dpy, bstr(name), False)
         return atom
 
 
@@ -37,9 +38,9 @@ def get_window_property(display, window, property, type=0, split=False, size=50)
     bafter = bytes_after[0]
     result = b''
     if fmt == 32:
-        result += str(ffi.buffer(data[0], nitems_return[0]*ITEM_SIZE))
+        result += btype(ffi.buffer(data[0], nitems_return[0]*ITEM_SIZE))
     elif fmt == 8:
-        result += str(ffi.buffer(data[0], nitems_return[0]))
+        result += btype(ffi.buffer(data[0], nitems_return[0]))
     elif not fmt:
         return None
     else:
@@ -51,9 +52,9 @@ def get_window_property(display, window, property, type=0, split=False, size=50)
             False, type, type_return, fmt_return, nitems_return, bytes_after, data)
         fmt = fmt_return[0]
         if fmt == 32:
-            result += str(ffi.buffer(data[0], nitems_return[0]*ITEM_SIZE))
+            result += btype(ffi.buffer(data[0], nitems_return[0]*ITEM_SIZE))
         elif fmt == 8:
-            result += str(ffi.buffer(data[0], nitems_return[0]))
+            result += btype(ffi.buffer(data[0], nitems_return[0]))
         else:
             raise Exception('Unknown format {}'.format(fmt))
 
@@ -75,7 +76,7 @@ def set_window_property(display, window, property, type, fmt, values):
         if values:
             data = ffi.cast('unsigned char *', ffi.new('XID[]', values))
         else:
-            data = ''
+            data = b''
     elif fmt == 8:
         data = values
     else:

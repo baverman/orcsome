@@ -1,6 +1,26 @@
 import os
 import re
 
+btype = type(b'')
+ntype = type('')
+utype = type(u'')
+
+
+def bstr(s, encoding='latin-1'):
+    if type(s) is not btype:
+        return s.encode(encoding)
+    return s
+
+
+def nstr(s, encoding='latin-1'):
+    t = type(s)
+    if t is not ntype:
+        if t is btype:
+            return s.decode(encoding)
+        elif t is utype:
+            return s.encode(encoding)
+    return s
+
 
 class cached_property(object):
     def __init__(self, func):
@@ -49,7 +69,7 @@ def spawn(cmd):
 
 class Mixable(object):
     def mix(self, mixin):
-        for name, value in mixin.__dict__.iteritems():
+        for name, value in mixin.__dict__.items():
             if name == '__init__':
                 value(self)
             elif name.startswith('__'):

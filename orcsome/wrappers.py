@@ -1,4 +1,4 @@
-from . utils import cached_property, match_string
+from . utils import cached_property, match_string, nstr
 from . import xlib as X
 
 
@@ -25,7 +25,7 @@ class Window(int):
     @cached_property
     def role(self):
         """Return WM_WINDOW_ROLE property"""
-        return self.get_property('WM_WINDOW_ROLE', 'STRING')
+        return nstr(self.get_property('WM_WINDOW_ROLE', 'STRING'), 'utf-8')
 
     def get_name_and_class(self):
         """Return WM_CLASS property"""
@@ -33,7 +33,7 @@ class Window(int):
         if not result:
             return None, None
 
-        return result
+        return nstr(result[0], 'utf-8'), nstr(result[1], 'utf-8')
 
     @cached_property
     def cls(self):
@@ -50,7 +50,7 @@ class Window(int):
     @cached_property
     def title(self):
         """Return _NET_WM_NAME property"""
-        return self.get_property('_NET_WM_NAME', 'UTF8_STRING')
+        return nstr(self.get_property('_NET_WM_NAME', 'UTF8_STRING'), 'utf-8')
 
     def matches(self, name=None, cls=None, role=None, desktop=None, title=None):
         """Check if window suits given matchers.

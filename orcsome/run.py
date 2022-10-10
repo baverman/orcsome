@@ -3,6 +3,7 @@ import signal
 import os.path
 import logging
 import argparse
+import runpy
 
 from . import VERSION, ev
 from .wm import WM
@@ -16,10 +17,9 @@ def load_config(wm, config):
     import orcsome
     orcsome._wm = wm
 
-    env = {}
     sys.path.insert(0, os.path.dirname(config))
     try:
-        execfile(config, env)
+        runpy.run_path(config)
     except:
         logger.exception('Error on loading %s' % config)
         sys.exit(1)
@@ -37,7 +37,7 @@ def check_config(config):
     env = {}
     sys.path.insert(0, os.path.dirname(config))
     try:
-        execfile(config, env)
+        runpy.run_path(config, env)
     except:
         logger.exception('Config file check failed %s' % config)
         return False
@@ -48,7 +48,8 @@ def check_config(config):
 
 
 def run():
-    parser = argparse.ArgumentParser(version='%prog ' + VERSION)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--version', action='version', version='%(prog)s ' + VERSION)
     parser.add_argument('-l', '--log', dest='log', metavar='FILE',
         help='Path to log file (log to stdout by default)')
     parser.add_argument('--log-level', metavar='LOGLEVEL', default='INFO',

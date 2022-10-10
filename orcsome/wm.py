@@ -4,7 +4,7 @@ import logging
 from . import xlib as X, ev
 from .wrappers import Window
 from .aliases import KEYS as KEY_ALIASES
-from .utils import Mixable, ActionCaller
+from .utils import Mixable, ActionCaller, bstr, nstr
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ class WM(Mixable):
         os.write(self.wfifo, signal + '\n')
 
     def keycode(self, key):
-        sym = X.XStringToKeysym(KEY_ALIASES.get(key, key))
+        sym = X.XStringToKeysym(bstr(KEY_ALIASES.get(key, key)))
         if sym is X.NoSymbol:
             return None
 
@@ -512,7 +512,7 @@ class WM(Mixable):
         except ValueError:
             pass
 
-        for atom, whandlers in self.property_handlers.items():
+        for atom, whandlers in list(self.property_handlers.items()):
             if window in whandlers:
                 del whandlers[window]
 
@@ -755,6 +755,6 @@ class ImmediateWM(WM):
 def error_handler(display, error):
     msg = X.ffi.new('char[100]')
     X.XGetErrorText(display, error.error_code, msg, 100)
-    logger.error('{} ({}:{})'.format(X.ffi.string(msg),
+    logger.error('{} ({}:{})'.format(nstr(X.ffi.string(msg)),
         error.request_code, error.minor_code))
     return 0

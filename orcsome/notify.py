@@ -47,7 +47,7 @@ class Notification(object):
         if err:
             raise Exception(err)
 
-        self.replace_id = int(out.strip().split()[1].rstrip(',)'))
+        self.replace_id = int(out.strip().split()[1].rstrip(b',)'))
 
     def update(self, summary=None, body=None, timeout=None, urgency=None):
         if summary is not None:

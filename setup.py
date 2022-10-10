@@ -6,7 +6,7 @@ setup(
     name     = 'orcsome',
     version  = orcsome.VERSION,
     author   = 'Anton Bobrov',
-    author_email = 'bobrov@vl.ru',
+    author_email = 'baverman+dev@gmail.com',
     description = 'Scripting extension for NETWM compliant window managers',
     long_description = open('README.rst').read(),
     zip_safe = False,
