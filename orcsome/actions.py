@@ -33,7 +33,7 @@ class Actions(object):
 
     def spawn_or_raise(self, cmd, switch_to_desktop=None, bring_to_current=False,
             on_create=None, **matchers):
-        """Activate window or run command
+        r"""Activate window or run command
 
         Activation means to give input focus for existing window matched
         by provided rules.

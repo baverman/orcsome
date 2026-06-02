@@ -360,7 +360,7 @@ class WM(Mixable):
         X.XFlush(self.dpy)
 
     def find_clients(self, clients, **matchers):
-        """Return matching clients list
+        r"""Return matching clients list
 
         :param clients: window list returned by :meth:`get_clients` or :meth:`get_stacked_clients`.
         :param \*\*matchers: keyword arguments defined in :meth:`is_match`
@@ -368,7 +368,7 @@ class WM(Mixable):
         return [r for r in clients if r.matches(**matchers)]
 
     def find_client(self, clients, **matchers):
-        """Return first matching client
+        r"""Return first matching client
 
         :param clients: window list returned by :meth:`get_clients` or :meth:`get_stacked_clients`.
         :param \*\*matchers: keyword arguments defined in :meth:`is_match`
@@ -638,7 +638,7 @@ class WM(Mixable):
         flags = 0x2f00
         # Workarea offsets
         dl, dt, dw, dh = tuple(self.get_workarea(window.desktop))
-        params = flags, left + dl, top + dt, max(1, dw - right - left), max(1, dh - bottom - top)
+        params = flags, int(left + dl), int(top + dt), int(max(1, dw - right - left)), int(max(1, dh - bottom - top))
         self._send_event(window, self.atom['_NET_MOVERESIZE_WINDOW'], list(params))
         self._flush()
 
