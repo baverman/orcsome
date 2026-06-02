@@ -6,6 +6,7 @@ NULL = ffi.NULL
 globals().update(lib.__dict__)
 
 NONE = 0
+BadWindow = 3
 
 
 class AtomCache(object):

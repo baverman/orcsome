@@ -93,8 +93,11 @@ class Window(int):
 
     def get_property(self, property, type=None, **kwargs):
         atom = self.wm.atom
-        return X.get_window_property(self.wm.dpy, self, atom[property],
-            atom[type] if type else 0, **kwargs)
+        with self.wm.suppress_xerrors(X.BadWindow) as trap:
+            result = X.get_window_property(self.wm.dpy, self, atom[property],
+                atom[type] if type else 0, **kwargs)
+        if trap.ok():
+            return result
 
     @cached_property
     def maximized_vert(self):

@@ -1,5 +1,6 @@
 import os
 import logging
+import contextlib
 
 from . import xlib as X, ev
 from .wrappers import Window
@@ -379,9 +380,33 @@ class WM(Mixable):
         except IndexError:
             return None
 
+    @contextlib.contextmanager
+    def suppress_xerrors(self, *codes):
+        """Silence the given X error codes for requests issued inside the block.
+
+        Yields a trap object that is truthy if a suppressed error fired::
+
+            with self.suppress_xerrors(X.BadWindow) as trap:
+                X.XGetGeometry(...)
+            if not trap.ok():
+                return None
+
+        Relies on orcsome being single-threaded: the ``XSync`` flushes every
+        request made inside the block, so the trap is settled by the time the
+        ``with`` exits.
+        """
+        global _active_trap
+        trap = _active_trap = _XErrorTrap(codes)
+        try:
+            yield trap
+        finally:
+            X.XSync(self.dpy, False)
+            _active_trap = None
+
     def process_create_window(self, window):
-        X.XSelectInput(self.dpy, window, X.StructureNotifyMask |
-                       X.PropertyChangeMask | X.FocusChangeMask)
+        with self.suppress_xerrors(X.BadWindow):
+            X.XSelectInput(self.dpy, window, X.StructureNotifyMask |
+                           X.PropertyChangeMask | X.FocusChangeMask)
 
         self.event_window = window
         for handler in self.create_handlers:
@@ -466,15 +491,18 @@ class WM(Mixable):
 
             self.focus_history.append(event.window)
             if event.mode in (0, 3) and self.track_kbd_layout:
-                prop = X.get_window_property(self.dpy, event.window, self.atom['_ORCSOME_KBD_GROUP'])
-                if prop:
+                with self.suppress_xerrors(X.BadWindow) as trap:
+                    prop = X.get_window_property(self.dpy, event.window, self.atom['_ORCSOME_KBD_GROUP'])
+
+                if trap.ok() and prop:
                     X.set_kbd_group(self.dpy, prop[0])
                 else:
                     X.set_kbd_group(self.dpy, 0)
         else:
             if event.mode in (0, 3) and self.track_kbd_layout:
-                X.set_window_property(self.dpy, event.window, self.atom['_ORCSOME_KBD_GROUP'],
-                                      self.atom['CARDINAL'], 32, [X.get_kbd_group(self.dpy)])
+                with self.suppress_xerrors(X.BadWindow):
+                    X.set_window_property(self.dpy, event.window, self.atom['_ORCSOME_KBD_GROUP'],
+                                          self.atom['CARDINAL'], 32, [X.get_kbd_group(self.dpy)])
 
     def _xevent_cb(self, loop, watcher, events):
         event = self._event
@@ -527,20 +555,23 @@ class WM(Mixable):
     def focus_and_raise(self, window):
         """Activate window desktop, set input focus and raise it"""
         self.activate_window_desktop(window)
-        X.XConfigureWindow(self.dpy, window, X.CWStackMode,
-            X.ffi.new('XWindowChanges *', {'stack_mode': X.Above}))
+        with self.suppress_xerrors(X.BadWindow):
+            X.XConfigureWindow(self.dpy, window, X.CWStackMode,
+                X.ffi.new('XWindowChanges *', {'stack_mode': X.Above}))
         self.focus_window(window)
 
     def place_window_above(self, window):
         """Float up window in wm stack"""
-        X.XConfigureWindow(self.dpy, window, X.CWStackMode,
-            X.ffi.new('XWindowChanges *', {'stack_mode': X.Above}))
+        with self.suppress_xerrors(X.BadWindow):
+            X.XConfigureWindow(self.dpy, window, X.CWStackMode,
+                X.ffi.new('XWindowChanges *', {'stack_mode': X.Above}))
         self._flush()
 
     def place_window_below(self, window):
         """Float down window in wm stack"""
-        X.XConfigureWindow(self.dpy, window, X.CWStackMode,
-            X.ffi.new('XWindowChanges *', {'stack_mode': X.Below}))
+        with self.suppress_xerrors(X.BadWindow):
+            X.XConfigureWindow(self.dpy, window, X.CWStackMode,
+                X.ffi.new('XWindowChanges *', {'stack_mode': X.Below}))
         self._flush()
 
     def _change_window_hidden_state(self, window, p):
@@ -577,8 +608,9 @@ class WM(Mixable):
 
         if otaskbar is not None:
             params = [] if otaskbar else [self.atom['_ORCSOME_SKIP_TASKBAR']]
-            X.set_window_property(self.dpy, window, self.atom['_ORCSOME_STATE'],
-                self.atom['ATOM'], 32, params)
+            with self.suppress_xerrors(X.BadWindow):
+                X.set_window_property(self.dpy, window, self.atom['_ORCSOME_STATE'],
+                    self.atom['ATOM'], 32, params)
 
         if pager is not None:
             params = not pager, self.atom['_NET_WM_STATE_SKIP_PAGER']
@@ -598,8 +630,10 @@ class WM(Mixable):
         h = X.ffi.new('unsigned int *')
         border_width = X.ffi.new('unsigned int *')
         depth = X.ffi.new('unsigned int *')
-        X.XGetGeometry(self.dpy, window, root_ret, x, y, w, h, border_width, depth)
-        return x[0], y[0], w[0], h[0]
+        with self.suppress_xerrors(X.BadWindow) as trap:
+            X.XGetGeometry(self.dpy, window, root_ret, x, y, w, h, border_width, depth)
+        if trap.ok():
+            return x[0], y[0], w[0], h[0]
 
     def get_screen_size(self):
         """Get size of screen (root window)"""
@@ -751,10 +785,28 @@ class ImmediateWM(WM):
         self.undecorated_atom_name = '_OB_WM_STATE_UNDECORATED'
 
 
+class _XErrorTrap(object):
+    __slots__ = ('codes', 'caught')
+
+    def __init__(self, codes):
+        self.codes = codes
+        self.caught = None        # the error_code that got suppressed, else None
+
+    def ok(self):
+        return self.caught is None
+
+
+_active_trap = None
+
+
 @X.ffi.callback('XErrorHandler')
 def error_handler(display, error):
+    trap = _active_trap
+    if trap is not None and error.error_code in trap.codes:
+        trap.caught = error.error_code
+        return 0
     msg = X.ffi.new('char[100]')
     X.XGetErrorText(display, error.error_code, msg, 100)
-    logger.error('{} ({}:{})'.format(nstr(X.ffi.string(msg)),
-        error.request_code, error.minor_code))
+    logger.error('{} ({} {}:{})'.format(nstr(X.ffi.string(msg)),
+        error.error_code, error.request_code, error.minor_code))
     return 0
